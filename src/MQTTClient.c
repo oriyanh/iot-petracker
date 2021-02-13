@@ -79,6 +79,13 @@ static int NetDisconnect(void *context) {
     return MQTT_CODE_SUCCESS;
 }
 
+static int NetDisable(void* context){
+	if (SocketDisable())
+		return MQTT_CODE_ERROR_NETWORK;
+	return MQTT_CODE_SUCCESS;
+
+}
+
 /**
  * Initializes MqttNet struct with callbacks, and initializes the MQTT client data structures
  * @param net Network struct to initialize
@@ -87,14 +94,13 @@ static int NetDisconnect(void *context) {
  */
 int MqttClientNet_Init(MqttNet* net, MQTTCtx* mqttCtx)
 {
-    // MqttMsgCb msgCb = MessageCb;  - no need to use this in current implementation, uncomment in future if necessary
     net->connect = NetConnect;
     net->read = NetRead;
     net->write = NetWrite;
     net->disconnect = NetDisconnect;
     net->context = mqttCtx;
     mqttCtx->client.net = net;
-    int retval = MqttClient_Init(&(mqttCtx->client), mqttCtx->client.net, NULL, mqttCtx->client.tx_buf, mqttCtx->client.tx_buf_len,
+    int retval = MqttClient_Init(&(mqttCtx->client), mqttCtx->client.net, mqttCtx->client.msg_cb, mqttCtx->client.tx_buf, mqttCtx->client.tx_buf_len,
                     mqttCtx->client.rx_buf, mqttCtx->client.rx_buf_len, mqttCtx->cmd_timeout_ms);
     return retval;
 }
@@ -106,7 +112,14 @@ int MqttClientNet_Init(MqttNet* net, MQTTCtx* mqttCtx)
  */
 int MqttClientNet_DeInit(MqttNet* net)
 {
+
     MQTTCtx* mqttCtx = net->context;
+    if (mqttCtx->reboot){
+    	mqttCtx->net.disconnect = NetDisable;
+    }
+    else{
+    	mqttCtx->net.disconnect = NetDisconnect;
+    }
     int retval = MqttClient_Disconnect(&(mqttCtx->client));
     if (retval < 0)
         return retval;
@@ -116,3 +129,5 @@ int MqttClientNet_DeInit(MqttNet* net)
     MqttClient_DeInit(&(mqttCtx->client));
     return retval;
 }
+
+

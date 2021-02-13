@@ -12,7 +12,6 @@ Maya Lulko maya.lulko@mail.huji.ac.il , 312414089
 
 ### Run
 After compiling the project, simply execute `main.c`.
-We assume that both MCU and MODEM are up and running at the start of the program.
 
 ## Design
 Our main does:

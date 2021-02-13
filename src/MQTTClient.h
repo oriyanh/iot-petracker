@@ -68,6 +68,7 @@ typedef struct _MQTTCtx {
     byte    test_mode;
     unsigned int dynamicTopic:1;
     unsigned int dynamicClientId:1;
+    unsigned int reboot;
 } MQTTCtx;
 
 int MqttClientNet_Init(MqttNet* net, MQTTCtx* mqttCtx);

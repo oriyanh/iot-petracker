@@ -27,8 +27,11 @@
 #define SYS_ENDL "\n"
 
 
-#define MQTT_DASHBOARD "35.156.182.231"
-#define TOPIC_NAME "huji_iot_class/2020_2021"
+#define MQTT_DASHBOARD "52.29.249.84" //"35.156.182.231"
+//#define TOPIC_NAME "huji_iot_class/2020_2021"
+
+#define LOCATION_TOPIC "petracker/location"
+#define DISTRESS_TOPIC "petracker/distress"
 #define MQTT_PORT 1883
 #define MQTT_CMD_TIMEOUT_MS 1500
 #define DEFAULT_KEEP_ALIVE_SEC 60
@@ -41,6 +44,10 @@
                 "\"Signal\":\"%d dBm\", " \
 				"\"Clicks\":%ld"       \
                 "}"
+#define FAKE_PAYLOAD "{%d}" // TODO remove later
+
+#define DISTRESS_ENABLE "enable"
+#define DISTRESS_DISABLE "disable"
 
 #endif /* SRC_CONFIG_H_ */
 

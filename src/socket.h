@@ -5,7 +5,7 @@
 /**
  * Initializes a TCP socket.
  * @param host is the destination address as DNS: en8wtnrvtnkt5.x.pipedream.net, or as IPv4: 35.169.0.97.
- * @param port the communication endpoint, as string, e.g.: “80”.
+ * @param port the communication endpoint, as string, e.g.:
  * @return 0 on success, -1 on failure.
  */
 int SocketInit(const char *host, word16 port);
@@ -39,5 +39,7 @@ int SocketRead(byte *buf, unsigned int max_len, unsigned int timeout_ms);
  * @return 0 on success, -1 on failure.
  */
 int SocketClose();
+
+int SocketDisable();
 
 #endif //IOT_EX1_SOCKET_H

@@ -7,8 +7,10 @@
 #include "logger.h"
 #include "timer_manager.h"
 #include "wolfmqtt/mqtt_types.h"
+#include "stdbool.h"
 
 #define MAX_NUM_OPS 10
+
 
 /**
  * Populates opList with information of all available cellular networks
@@ -100,7 +102,12 @@ int SocketRead(unsigned char *buf, unsigned int max_len, unsigned int timeout_ms
 
 int SocketClose() {
     logInfo("SocketClose");
-    return CellularDisable();
+
+    return CellularClose();
+}
+int SocketDisable() {
+	logInfo("SocketDisable");
+	return CellularDisable();
 }
 
 
@@ -123,39 +130,40 @@ int cellularConnectFlow() {
         CellularDisable();
         return -1;
     }
-    logInfo("CellularCheckModem validated!");
-
-    logInfo("detectCellularNetworks");
-    logDebug("allocating opList");
-    OPERATOR_INFO* opList = NULL;
-    opList = (OPERATOR_INFO*) calloc(MAX_NUM_OPS, sizeof(OPERATOR_INFO));
-    if (opList == NULL) {
-        logError("Memory allocation error for operator list, aborting.");
-        CellularDisable();
-        return -1;
-    }
-
-    int numOpsFound = 0;
-    if (detectCellularNetworks(opList, &numOpsFound)) {
-        logError("Failed detectCellularNetworks");
-        free(opList);
-        opList = NULL;
-        CellularDisable();
-        return -1;
-    }
-
-    logInfo("registerCellularNetwork");
-    if (registerCellularNetwork(opList, numOpsFound)) {
-        logError("Failed registerCellularNetwork");
-        free(opList);
-        opList = NULL;
-        CellularDisable();
-        return -1;
-    }
-
-    free(opList);
-    opList = NULL;
-
+//    logInfo("CellularCheckModem validated!");
+//    if (registerToNetwork) {
+//		logInfo("detectCellularNetworks");
+//		logDebug("allocating opList");
+//		OPERATOR_INFO* opList = NULL;
+//		opList = (OPERATOR_INFO*) calloc(MAX_NUM_OPS, sizeof(OPERATOR_INFO));
+//		if (opList == NULL) {
+//			logError("Memory allocation error for operator list, aborting.");
+//			CellularDisable();
+//			return -1;
+//		}
+//
+//		int numOpsFound = 0;
+//		if (detectCellularNetworks(opList, &numOpsFound)) {
+//			logError("Failed detectCellularNetworks");
+//			free(opList);
+//			opList = NULL;
+//			CellularDisable();
+//			return -1;
+//		}
+//
+//		logInfo("registerCellularNetwork");
+//		if (registerCellularNetwork(opList, numOpsFound)) {
+//			logError("Failed registerCellularNetwork");
+//			free(opList);
+//			opList = NULL;
+//			CellularDisable();
+//			return -1;
+//		}
+//
+//		free(opList);
+//		opList = NULL;
+//		registerToNetwork = false;
+//	}
     return 0;
 }
 
