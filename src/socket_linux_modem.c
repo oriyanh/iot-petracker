@@ -11,6 +11,7 @@
 
 #define MAX_NUM_OPS 10
 
+static bool registerToNetwork = true;
 
 /**
  * Populates opList with information of all available cellular networks
@@ -22,6 +23,8 @@ static int detectCellularNetworks(OPERATOR_INFO* opList, int *numOpsFound);
  * If that fails, continues to the next. If all attempts fail, returns -1;
  */
 static int registerCellularNetwork(OPERATOR_INFO* opList, int numOpsFound);
+
+int registeringToNetworkFlow();
 
 /**
  * Runs cellularInit->CheckModem->detectNetworks->register->refresh. This function is called in SocketInit
@@ -102,12 +105,23 @@ int SocketRead(unsigned char *buf, unsigned int max_len, unsigned int timeout_ms
 
 int SocketClose() {
     logInfo("SocketClose");
-
     return CellularClose();
 }
 int SocketDisable() {
 	logInfo("SocketDisable");
-	return CellularDisable();
+	registerToNetwork = true;
+	int retval = CellularDisable();
+	//TODO add cellular init after disable and registration to the network.
+	if (retval < 0) {
+		logError("Failed CellularDisable, aborting.");
+//		return -1;
+	}
+	retval = cellularConnectFlow();
+	if (retval < 0) {
+		logError("Failed Cellular-reconnect, aborting.");
+		return -1;
+	}
+return 0;
 }
 
 
@@ -118,7 +132,7 @@ int cellularConnectFlow() {
     result = CellularInit(MODEM_PORT);
     if (result < 0) {
         logError("Failed CellularInit, aborting.");
-        CellularDisable();
+//        CellularDisable();
         return -1;
     }
     logInfo("CellularInit success!");
@@ -127,46 +141,59 @@ int cellularConnectFlow() {
     result = CellularCheckModem();
     if (result < 0) {
         logError("Failed to validate connectivity, aborting.");
-        CellularDisable();
+//        CellularDisable();
         return -1;
     }
-//    logInfo("CellularCheckModem validated!");
-//    if (registerToNetwork) {
-//		logInfo("detectCellularNetworks");
-//		logDebug("allocating opList");
-//		OPERATOR_INFO* opList = NULL;
-//		opList = (OPERATOR_INFO*) calloc(MAX_NUM_OPS, sizeof(OPERATOR_INFO));
-//		if (opList == NULL) {
-//			logError("Memory allocation error for operator list, aborting.");
-//			CellularDisable();
-//			return -1;
-//		}
-//
-//		int numOpsFound = 0;
-//		if (detectCellularNetworks(opList, &numOpsFound)) {
-//			logError("Failed detectCellularNetworks");
-//			free(opList);
-//			opList = NULL;
-//			CellularDisable();
-//			return -1;
-//		}
-//
-//		logInfo("registerCellularNetwork");
-//		if (registerCellularNetwork(opList, numOpsFound)) {
-//			logError("Failed registerCellularNetwork");
-//			free(opList);
-//			opList = NULL;
-//			CellularDisable();
-//			return -1;
-//		}
-//
-//		free(opList);
-//		opList = NULL;
-//		registerToNetwork = false;
-//	}
+    logInfo("CellularCheckModem validated!");
+    if (registerToNetwork){
+    	// TODO checke if this works ok
+		result = registeringToNetworkFlow();
+		registerToNetwork = false;
+		if (result < 0) {
+				logError("Failed to validate connectivity, aborting.");
+// 				CellularDisable();
+				return -1;
+			}
+		logInfo("CellularRegistered!");
+    }
     return 0;
 }
 
+int registeringToNetworkFlow(){
+	    if (registerToNetwork) {
+			logInfo("detectCellularNetworks");
+			logDebug("allocating opList");
+			OPERATOR_INFO* opList = NULL;
+			opList = (OPERATOR_INFO*) calloc(MAX_NUM_OPS, sizeof(OPERATOR_INFO));
+			if (opList == NULL) {
+				logError("Memory allocation error for operator list, aborting.");
+//				CellularDisable();
+				return -1;
+			}
+
+			int numOpsFound = 0;
+			if (detectCellularNetworks(opList, &numOpsFound)) {
+				logError("Failed detectCellularNetworks");
+				free(opList);
+				opList = NULL;
+//				CellularDisable(); //TODO see if there is a need to do disable here - we do it anyway in the exit flow
+				return -1;
+			}
+
+			logInfo("registerCellularNetwork");
+			if (registerCellularNetwork(opList, numOpsFound)) {
+				logError("Failed registerCellularNetwork");
+				free(opList);
+				opList = NULL;
+//				CellularDisable();
+				return -1;
+			}
+
+			free(opList);
+			opList = NULL;
+			registerToNetwork = false;
+		}
+}
 
 int detectCellularNetworks(OPERATOR_INFO* opList, int *numOpsFound) {
     logDebug("querying modem for cellular operators");

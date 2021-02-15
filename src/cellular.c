@@ -449,7 +449,7 @@ int CellularSetOperator(int mode, OPERATOR_INFO *op) {
     }
     logDebug("Successfully executed AT+COPS=<mode>[...] command");
     logInfo("refreshModemMetadata");
-    refreshModemMetadata();
+//    refreshModemMetadata();
     return RET_SUCCESS;
 }
 

@@ -179,7 +179,8 @@ int main(void)
   logInfo("initMqttClient");
   retval = initMqttClient(&mqttCtx);
   if (retval < 0) {
-	  return MqttExitRoutine(retval, "initMqttClient Error", &mqttCtx);
+	  MqttExitRoutine(retval, "initMqttClient Error", &mqttCtx);
+	  while(1);
   }
 
   while (1) {
@@ -187,18 +188,25 @@ int main(void)
 	  if (!connected){
 		  retval = MqttConnectFlow(&mqttCtx);
 		  if (retval<0){
-			  return -1;
+			  MqttExitRoutine(retval, "connectFlow error", &mqttCtx);
 		  }
-		  connected = true;
+		  else{
+			  connected = true;
+		  }
 	  }
-	  retval = publishMessage(&mqttCtx);
-	  if (retval < 0){
-		  return MqttExitRoutine(retval, "publish Error", &mqttCtx);
+	  if (connected){
+		  retval = publishMessage(&mqttCtx);
+		  if (retval < 0){
+			  MqttExitRoutine(retval, "publish Error", &mqttCtx);
+			  connected = false;
+		  }
 	  }
-
 	  if (!distress){
-		  MqttClientNet_DeInit(&mqttCtx.net);
-		  connected = false;
+		  if (connected)
+		  {
+			  MqttExitRoutine(retval, "going to sleep", &mqttCtx);
+			  connected = false;
+		  }
 		  sleepMs(60000);
 	  }
 	  else{
@@ -219,13 +227,13 @@ int MqttConnectFlow(MQTTCtx* mqttCtx){
   logInfo("connectToBroker");
   retval = connectToBroker(mqttCtx);
   if (retval < 0) {
-	  return MqttExitRoutine(retval, "connectToBroker Error", &mqttCtx);
+	  return MqttExitRoutine(retval, "connectToBroker Error", mqttCtx);
   }
 
   logInfo("subscribeMessage");
   retval = subscribeToTopic(mqttCtx);
   if (retval < 0){
-      return MqttExitRoutine(retval, "publishMessage Error", &mqttCtx);
+      return MqttExitRoutine(retval, "publishMessage Error", mqttCtx);
   }
 
   return MQTT_CODE_SUCCESS;
@@ -307,12 +315,15 @@ static int DitressListener(MqttClient *client, MqttMessage *message,
     }
     XMEMCPY(buf, message->buffer, len);
     buf[len] = '\0'; /* Make sure its null terminated */
-    if (strstr(buf, DISTRESS_ENABLE)== NULL){
+// todo make sure that we do not need to compare to NULL
+    if (strstr(buf, DISTRESS_ENABLE)){
+
     	logInfo("distress enabled");
     	distress = true;
     	redrawScreen =true;
     }
-    else if (strstr(buf, DISTRESS_DISABLE)==NULL){
+// todo make sure that we do not need to compare to NULL
+    else if (strstr(buf, DISTRESS_DISABLE)){
     	logInfo("distress disabled");
     	distress = false;
     	redrawScreen =true;
@@ -413,6 +424,7 @@ static int subscribeToTopic(MQTTCtx* mqttCtx){
 
 
 static int MqttExitRoutine(int retval, char *message, MQTTCtx *mqttCtx) {
+// TODO unsubscribe?
   if (retval < 0){
       logError("%s\nError code (%d): %s", message, retval, MqttClient_ReturnCodeToString(retval));
 //      logFail("MqttFlow failure, aborting...");
@@ -426,6 +438,7 @@ static int MqttExitRoutine(int retval, char *message, MQTTCtx *mqttCtx) {
   }
 
   logInfo("MqttClientNet_DeInit");
+  redrawScreen = true;
   MqttClientNet_DeInit(&mqttCtx->net);
   return retval;
 }

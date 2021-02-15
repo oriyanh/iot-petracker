@@ -1,7 +1,7 @@
 /*
  * config.h
  *
- *  Created on: 31 áãöî× 2020
+ *  Created on: 31 Ã¡Ã£Ã¶Ã®Ã— 2020
  *      Author: Maya lulko
  */
 
@@ -27,8 +27,8 @@
 #define SYS_ENDL "\n"
 
 
+
 #define MQTT_DASHBOARD "52.29.249.84" //"35.156.182.231"
-//#define TOPIC_NAME "huji_iot_class/2020_2021"
 
 #define LOCATION_TOPIC "petracker/location"
 #define DISTRESS_TOPIC "petracker/distress"

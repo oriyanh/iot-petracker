@@ -73,17 +73,25 @@ static int NetWrite(void *context, const byte* buf, int buf_len, int timeout_ms)
  * @return
  */
 static int NetDisconnect(void *context) {
-    logDebug("Executing NetDisconnect: SocketClose");
-    if (SocketClose())
+    logDebug("Executing NetDisconnect");
+	int retval = MQTT_CODE_SUCCESS;
+	if (context == NULL)
+	{
+		retval = SocketDisable();
+	}
+	else
+	{
+		MQTTCtx* mqttCtx = (MQTTCtx*) context;
+		if (mqttCtx->reboot){
+			retval= SocketDisable();
+		}
+		else{
+			retval = SocketClose();
+		}
+	}
+    if (retval < 0)
         return MQTT_CODE_ERROR_NETWORK;
     return MQTT_CODE_SUCCESS;
-}
-
-static int NetDisable(void* context){
-	if (SocketDisable())
-		return MQTT_CODE_ERROR_NETWORK;
-	return MQTT_CODE_SUCCESS;
-
 }
 
 /**
@@ -112,14 +120,7 @@ int MqttClientNet_Init(MqttNet* net, MQTTCtx* mqttCtx)
  */
 int MqttClientNet_DeInit(MqttNet* net)
 {
-
-    MQTTCtx* mqttCtx = net->context;
-    if (mqttCtx->reboot){
-    	mqttCtx->net.disconnect = NetDisable;
-    }
-    else{
-    	mqttCtx->net.disconnect = NetDisconnect;
-    }
+	MQTTCtx* mqttCtx = net->context;
     int retval = MqttClient_Disconnect(&(mqttCtx->client));
     if (retval < 0)
         return retval;
