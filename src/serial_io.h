@@ -7,7 +7,7 @@
  * @param baud - the baud rate of the communication. For example: 9600, 115200
  * @return 0 if succeeded in opening the port and -1 otherwise.
  */
-int SerialInit(const char* port, unsigned int baud);
+int SerialInit(SERIAL_PORT port, unsigned int baud, int* handle);
 
 /**
  * @brief Receives data from serial connection.
@@ -16,7 +16,7 @@ int SerialInit(const char* port, unsigned int baud);
  * @param timeout_ms - read operation timeout milliseconds.
  * @return amount of bytes read into buf, -1 on error.
 */
-int SerialRecv(unsigned char *buf, unsigned int max_len, unsigned int timeout_ms);
+int SerialRecv(unsigned char *buf, unsigned int max_len, unsigned int timeout_ms, int *handle);
 
 /**
  * @brief Sends data through the serial connection.
@@ -24,17 +24,17 @@ int SerialRecv(unsigned char *buf, unsigned int max_len, unsigned int timeout_ms
  * @param size - number of bytes to send
  * @return amount of bytes written into buf, -1 on error
  */
-int SerialSend(const unsigned char *buf, unsigned int size);
+int SerialSend(const unsigned char *buf, unsigned int size, int *handle);
 
 /**
  * @brief Empties the input buffer.
  */
-void SerialFlushInputBuff(void);
+void SerialFlushInputBuff(int *handle);
 
 /**
  * @brief Disable the serial connection.
  * @return 0 if succeeded in closing the port and -1 otherwise.
  */
-int SerialDisable(void);
+int SerialDisable(int *handle);
 
 #endif // SERIAL_IO_H

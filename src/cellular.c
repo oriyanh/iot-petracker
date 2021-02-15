@@ -1,8 +1,7 @@
 #include <stdio.h>
-
-#include "timer_manager.h"
 #include <string.h>
 #include <stdlib.h>
+#include "timer_manager.h"
 #include "config.h"
 #include "cellular.h"
 #include "serial_io.h"
@@ -23,12 +22,15 @@ static char RESULT_BUFFER[_RX_MODEM_BUFFER_SIZE] = {0};
 static const char* TECHNOLOGIES[3] = {"2G", "", "3G"};
 static const char* OK_END_MSG = "OK";
 
+static int serialFd = -1;
+
 enum RETURN_CODE {RET_SUCCESS = 0, RET_ERROR = -1, RET_WARNING = -2};
+
 
 static OPERATOR_INFO op_info = {0};
 static MODEM_METADATA cellularMetaData = { 0 };
 
-/************************ utility functions *****************************/
+ /************************ utility functions *****************************/
 static void refreshModemMetadata(void);
 
 /**
@@ -43,7 +45,7 @@ static int executeCommand(const char* command, int commandLen) {
     // Pre-formatting command
     CLEAR_TX_BUFFER();
     snprintf(CMD_BUFFER, commandLenUpdated + 1, "%s%s%c", command, SERIAL_ENDL, '\0');
-    int bytesSent = SerialSend((unsigned char*)CMD_BUFFER, commandLenUpdated+1);
+    int bytesSent = SerialSend((unsigned char*)CMD_BUFFER, commandLenUpdated+1, &serialFd);
     CMD_BUFFER[0]='\0';
 
     if (bytesSent < 0) {
@@ -75,10 +77,10 @@ static int readUntil(char* buf, int bufsize, int timeout, const char* endMsg, in
 
     int found = 0;  // If we found endMsg in the rx buffer, we will mark this value with 1.
     while ((attempts < maxNumAttempts) && (totalBytesRecv < bufsize) ) {
-        bytesRecv = SerialRecv(curLocation, bufsize - totalBytesRecv, timeout);
+        bytesRecv = SerialRecv(curLocation, bufsize - totalBytesRecv, timeout, &serialFd);
         if (bytesRecv < 0) {
             logError("\tError occurred while reading data from modem, aborting.");
-            SerialFlushInputBuff();
+            SerialFlushInputBuff(&serialFd);
             return RET_ERROR;
         }
 
@@ -88,12 +90,13 @@ static int readUntil(char* buf, int bufsize, int timeout, const char* endMsg, in
             found = 1;
             break;
         }
-		if (strstr(buf, "ERROR")!=NULL) {
-			logError("Found `ERROR`");
-			break;
-		}
-		++attempts;
-        curLocation += bytesRecv;
+
+       if (strstr(buf, "ERROR")!=NULL) {
+               logError("Found `ERROR`");
+               break;
+       }
+       ++attempts;
+           curLocation += bytesRecv;
     }
 
     buf[totalBytesRecv] = '\0';
@@ -101,13 +104,14 @@ static int readUntil(char* buf, int bufsize, int timeout, const char* endMsg, in
 
     if (!found){
         logError("Error, did not encounter `%s` in incoming data from modem.", endMsg);
-        SerialFlushInputBuff();
+        SerialFlushInputBuff(&serialFd);
         return RET_ERROR;
     }
 
-    SerialFlushInputBuff();
+    SerialFlushInputBuff(&serialFd);
     return totalBytesRecv;
 }
+
 
 
 /************************ useful macros *****************************/
@@ -164,13 +168,13 @@ static int execCommandWithOutput(const char* cmd, int timeout, const char* endMs
 int CellularInit(char *port) {
     setupTimer();
     logInfo("CellularInit");
-    int retval = SerialInit(port, BAUDRATE);
+    int retval = SerialInit(MODEM_PORT, MODEM_BAUDRATE, &serialFd);
     if (retval < 0) {
         logError("Failed CellularInit, aborting.");
         return RET_ERROR;
     }
 
-    SerialFlushInputBuff();
+    SerialFlushInputBuff(&serialFd);
 
     CLEAR_RX_BUFFER();
     logInfo("Turning off echo mode");
@@ -178,7 +182,7 @@ int CellularInit(char *port) {
     retval = execSimpleModemCommand(cmdATE0, SHORT_TIMEOUT);
     if (retval == RET_ERROR) {
         logError("A fatal error has occurred, aborting.");
-        SerialDisable();
+        SerialDisable(&serialFd);
         return RET_ERROR;
     }
 
@@ -186,15 +190,15 @@ int CellularInit(char *port) {
 }
 
 int CellularReboot(void){
-	static const char* PBREADY = "+PBREADY";
-	static const char* cmdCFUN = "AT+CFUN=1,1";
-	int retval = execCommandWithOutput(cmdCFUN, MEDIUM_TIMEOUT, PBREADY);
-	if (retval < 0) {
-		logError("Failed to connect to modem, aborting.");
-		SerialDisable();
-		return RET_ERROR;
-	}
-	return RET_SUCCESS;
+   static const char* PBREADY = "+PBREADY";
+   static const char* cmdCFUN = "AT+CFUN=1,1";
+   int retval = execCommandWithOutput(cmdCFUN, MEDIUM_TIMEOUT, PBREADY);
+   if (retval < 0) {
+       logError("Failed to connect to modem, aborting.");
+       SerialDisable(&serialFd);
+       return RET_ERROR;
+   }
+   return RET_SUCCESS;
 }
 
 /**
@@ -210,10 +214,12 @@ int CellularDisable(void) {
     if (retval <0) {
         logError("Failed to reboot Modem");
     }
-    retval = SerialDisable();
+    retval = SerialDisable(&serialFd);
     if (retval < 0) {
         logError("An error occurred while disabling serial connection to modem");
+        retval = -1;
     }
+    serialFd = -1;
 
     return retval;
 }
@@ -228,11 +234,9 @@ int CellularCheckModem(void) {
     int retval = execSimpleModemCommand(cmdAT, SHORT_TIMEOUT);
     if (retval == RET_ERROR) {
         logError("A fatal error has occurred, aborting.");
-        return SerialDisable();
-
+        return SerialDisable(&serialFd);
     } else if (retval == RET_WARNING) {
         retval = RET_ERROR;
-
         logError("Command execution of `%s` failed, skipping.", cmdAT);
     }
 
@@ -242,7 +246,7 @@ int CellularCheckModem(void) {
 /**
  * Returns -1 if the modem did not respond or respond with an error.
  * Returns 0 if the command was successful and the registration status was obtained from the modem.
- * In that case, the status parameter will be populated with the numeric value of the <regStatus>field of the ג€�+CREGג€� AT command.
+ * In that case, the status parameter will be populated with the numeric value of the <regStatus>field of the “+CREG” AT command.
  * @param status
  * @return
  */
@@ -262,14 +266,14 @@ int CellularGetRegistrationStatus(int *status) {
     bytesRecv = READ_RX_BUFFER(30, SHORT_TIMEOUT, OK_END_MSG);
     if (bytesRecv == RET_ERROR) {
         logError("An error occurred while reading from modem, aborting");
-        SerialFlushInputBuff();
+        SerialFlushInputBuff(&serialFd);
         CLEAR_RX_BUFFER();
         return RET_ERROR;
     }
 
     if (bytesRecv == 0) {
         logError("Failed to read data from mode, got 0 bytes");
-        SerialFlushInputBuff();
+        SerialFlushInputBuff(&serialFd);
         CLEAR_RX_BUFFER();
         return RET_ERROR;
     }
@@ -277,7 +281,7 @@ int CellularGetRegistrationStatus(int *status) {
     char *prefixPtr = strstr(RESULT_BUFFER, hasPrefix);
     if (strstr(prefixPtr, hasPrefix) == NULL) {
         logError("Failed to parse status code from modem's output");
-        SerialFlushInputBuff();
+        SerialFlushInputBuff(&serialFd);
         CLEAR_RX_BUFFER();
         return RET_ERROR;
     }
@@ -287,13 +291,13 @@ int CellularGetRegistrationStatus(int *status) {
     int tempStatus = (int)strtol(prefixPtr, &endPtr, 10);
     if (tempStatus < 0 || tempStatus > 5) {
         logError("Failed to parse status code from modem's output");
-        SerialFlushInputBuff();
+        SerialFlushInputBuff(&serialFd);
         CLEAR_RX_BUFFER();
         return RET_ERROR;
     }
 
     *status = tempStatus;
-    SerialFlushInputBuff();
+    SerialFlushInputBuff(&serialFd);
     CLEAR_RX_BUFFER();
     return RET_SUCCESS;
 }
@@ -333,7 +337,7 @@ static int parseSingleOp(const char* startOp, int length, OPERATOR_INFO *operato
 }
 
 /**
- * forces the modem to search for available operators (see ג€�+COPS=?ג€� command).
+ * forces the modem to search for available operators (see “+COPS=?” command).
  * Returns -1 if an error occurred or no operators found. Returns 0 and populates opList and opsFound
  * if the command succeeded. opList is a pointer to the first item of an array of type OPERATOR_INFO,
  * which is allocated by the caller of this function. The array contains a total of maxops items.
@@ -401,10 +405,12 @@ int CellularGetOperators(OPERATOR_INFO *opList, int maxops, int *numOpsFound) {
     }
 
     *numOpsFound = currentOpIndex;
-    SerialFlushInputBuff();
+    SerialFlushInputBuff(&serialFd);
     CLEAR_RX_BUFFER();
     return RET_SUCCESS;
 }
+
+
 
 /**
  * Forces the modem to register/deregister with a network.
@@ -412,13 +418,12 @@ int CellularGetOperators(OPERATOR_INFO *opList, int maxops, int *numOpsFound) {
  * If mode=0, sets the modem to automatically register with an operator (ignores the operatorCode parameter).
  * If mode=1, forces the modem to work with a specific operator, given in operatorCode.
  * If mode=2, deregisters from the network (ignores the operatorCode parameter).
- * See the ג€�+COPS=<mode>,...ג€� command for more details.
+ * See the “+COPS=<mode>,...” command for more details.
  * @param mode
  * @param operatorCode
  * @return
  */
 int CellularSetOperator(int mode, OPERATOR_INFO *op) {
-	//TODO change operator code to the operator info struct - see that types match.
     static const char* setCMDSimpleFormat = "AT+COPS=%d";
     static const char* setCMDRegisterFormat = "AT+COPS=%d,2,\"%d\"";
 
@@ -442,11 +447,12 @@ int CellularSetOperator(int mode, OPERATOR_INFO *op) {
         return RET_ERROR;
     }
     if (mode == 1){
-    	memcpy(&op_info, op, sizeof(OPERATOR_INFO));
+        memcpy(&op_info, op, sizeof(OPERATOR_INFO));
     }
     else if (mode==2){
-    	memset(&op_info, 0, sizeof(OPERATOR_INFO));
+        memset(&op_info, 0, sizeof(OPERATOR_INFO));
     }
+
     logDebug("Successfully executed AT+COPS=<mode>[...] command");
     logInfo("refreshModemMetadata");
 //    refreshModemMetadata();
@@ -530,7 +536,7 @@ int CellularGetICCID(char* iccid, int maxlen) {
     int bytesSend = executeCommand(cmdCCID, (int)strlen(cmdCCID));
     if (bytesSend == RET_ERROR) {
         logError("A fatal error has occurred, aborting.");
-        return SerialDisable();
+        return SerialDisable(&serialFd);
     } else if (bytesSend == RET_WARNING) {
         logError("Command execution of `%s` failed, skipping.", cmdCCID);
     }
@@ -808,54 +814,6 @@ int CellularSetupInternetServiceSetupProfile(const char *IP, unsigned int port, 
 static int g_isConnected = 0;
 static int g_inSilentMode = 0;
 
-#ifdef CHECK_SOCKET_COMM
-static int checkSocketCommunicationSt(){
-  static const char* AT_SISI="AT^SISI?";
-  static const char* hasPrefix ="^SISI: 1,";
-  int bytesSend = executeCommand(AT_SISI, (int)strlen(AT_SISI));
-  if (bytesSend == RET_ERROR) {
-      logError("An error occurred while executing modem command `%s`, aborting", AT_SISI);
-      return RET_ERROR;
-  }
-
-  int bytesRecv = READ_RX_BUFFER(64, MEDIUM_TIMEOUT, OK_END_MSG);
-  if (bytesRecv == RET_ERROR) {
-      logError("An error occurred while reading from modem, aborting");
-      SerialFlushInputBuff();
-      CLEAR_RX_BUFFER();
-      return RET_ERROR;
-  }
-  int* status = NULL;
-  char *prefixPtr = strstr(RESULT_BUFFER, hasPrefix);
-  if (strstr(prefixPtr, hasPrefix) == NULL) {
-      logError("Failed to parse status code from modem's output");
-      SerialFlushInputBuff();
-      CLEAR_RX_BUFFER();
-      return RET_ERROR;
-  }
-
-  prefixPtr += strlen(hasPrefix);
-  char *endPtr = NULL;
-  int tempStatus = (int)strtol(prefixPtr, &endPtr, 10);
-  if (tempStatus < 0 || tempStatus > 9) {
-      logError("Failed to parse status code from modem's output");
-      SerialFlushInputBuff();
-      CLEAR_RX_BUFFER();
-      return RET_ERROR;
-  }
-
-  *status = tempStatus;
-  SerialFlushInputBuff();
-  CLEAR_RX_BUFFER();
-
-
-  if ((*status == 3)||(*status == 4)||(*status == 8)){
-      logInfo("socket connected properly");
-      return RET_SUCCESS;
-  }
-  return RET_ERROR;
-}
-#endif // CHECK_SOCKET_COMM
 
 /**
  * Connects to the socket (establishes TCP connection to the pre-defined host and port).
@@ -879,15 +837,17 @@ int CellularConnect(void) {
         logWarn("warn: no '%s' after `%s`",OK_END_MSG, AT_SISC);
     }
 
+
+
     logDebug("Opening modem TCP connection");
     bytesRecv = execCommandWithOutput(AT_SISO, SHORT_TIMEOUT, OK_END_MSG);
     if (bytesRecv < 0) {
-	logError("%s Failed, closing socket", AT_SISO);
+        logError("%s Failed, closing socket", AT_SISO);
         return RET_ERROR;
     }
     g_isConnected = 1;
 
-	sleepMs(5000);
+    sleepMs(5000);
     logDebug("Attempting to enter silent TCP mode");
     bytesRecv = execCommandWithOutput(AT_SIST, SHORT_TIMEOUT, "CONNECT");
     if (bytesRecv < 0) {
@@ -902,7 +862,6 @@ int CellularConnect(void) {
     return RET_SUCCESS;
 }
 
-
 /**
  * Closes the established connection.
  * @return 0 on success, -1 on failure
@@ -915,7 +874,7 @@ int CellularClose(){
     sleepMs(1200);
     int bytesRecv;
 
-    int bytesSent = SerialSend((unsigned char*)CMD_CLOSE_TCP_CLIENT, 3);
+    int bytesSent = SerialSend((unsigned char*)CMD_CLOSE_TCP_CLIENT, 3, &serialFd);
     logDebug("Writing escape sequence '%s'", CMD_CLOSE_TCP_CLIENT);
     if (bytesSent < 0) {
         logError("escape sequence '%s' write failed", CMD_CLOSE_TCP_CLIENT);
@@ -968,7 +927,7 @@ int CellularWrite(const unsigned char *payload, unsigned int len){
     while (bytesRemaining > 0) {
         bytesToWrite = bytesRemaining > _TX_MODEM_BUFFER_SIZE ? _TX_MODEM_BUFFER_SIZE : bytesRemaining;
         logDebug("Writing %d bytes to modem. Payload='%.*s'",bytesToWrite, bytesToWrite, &payload[bytesWritten]);
-        bytesSent = SerialSend(&payload[bytesWritten], bytesToWrite);
+        bytesSent = SerialSend(&payload[bytesWritten], bytesToWrite, &serialFd);
         bytesSent = bytesToWrite;
         if (bytesSent < 0){
             logError("CellularWrite failed in middle after %d/%d bytes.", bytesWritten, len);
@@ -982,7 +941,7 @@ int CellularWrite(const unsigned char *payload, unsigned int len){
 }
 
 /**
- * Reads up to max_len bytes from the established connection to the provided buf buffer, for up to timeout_ms (doesn't block
+ * Reads up to max_len bytes from the established connection to the provided buf buffer, for up to timeout_ms (doesn’t block
  * longer than that, even if not all max_len bytes were received).
  * @param buf
  * @param max_len
@@ -996,7 +955,7 @@ int CellularRead(unsigned char *buf, unsigned int max_len, unsigned int timeout_
         return RET_ERROR;
     }
 
-    int bytesRecv = SerialRecv(buf, max_len, timeout_ms);
+    int bytesRecv = SerialRecv(buf, max_len, timeout_ms, &serialFd);
     if (bytesRecv < 0){
         logError("Unable to send read from modem.");
         return RET_ERROR;
@@ -1007,14 +966,13 @@ int CellularRead(unsigned char *buf, unsigned int max_len, unsigned int timeout_
 }
 
 static void refreshModemMetadata(void){
-	memset(&cellularMetaData, 0, sizeof(cellularMetaData));
-	memcpy(&cellularMetaData.op_info, &op_info,sizeof(OPERATOR_INFO));
-	CellularGetICCID(cellularMetaData.ccid, ICCID_NUM_DIGITS);
-	CellularGetSignalQuality(&cellularMetaData.csq);
+   memset(&cellularMetaData, 0, sizeof(cellularMetaData));
+   memcpy(&cellularMetaData.op_info, &op_info,sizeof(OPERATOR_INFO));
+   CellularGetICCID(cellularMetaData.ccid, ICCID_NUM_DIGITS);
+   CellularGetSignalQuality(&cellularMetaData.csq);
 }
 
 void inline GetModemMetadata(MODEM_METADATA *metaData)
 {
-	memcpy(metaData, &cellularMetaData,sizeof(MODEM_METADATA));
+   memcpy(metaData, &cellularMetaData,sizeof(MODEM_METADATA));
 }
-

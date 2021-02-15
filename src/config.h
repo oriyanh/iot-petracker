@@ -20,15 +20,22 @@
 // According to Wikipedia, ICCID should be at most 22 digits
 #define ICCID_NUM_DIGITS 23
 
-#define MODEM_PORT ""
-#define BAUDRATE 115200
+typedef enum _SERIAL_PORT {MODEM_PORT = 0, GPS_PORT} SERIAL_PORT;
+#define MODEM_PORT_NAME "CELLULAR_MODEM\0"
+#define MODEM_BAUDRATE 115200
+#define GPS_PORT_NAME "GPS\0"
+#define GPS_BAUDRATE 9600
+
+
 #define MAX_NUMBER_RETRIES 30
 #define SERIAL_ENDL "\r\n"
 #define SYS_ENDL "\n"
 
 
 
-#define MQTT_DASHBOARD "52.29.249.84" //"35.156.182.231"
+//#define MQTT_DASHBOARD "52.29.249.84"
+//#define MQTT_DASHBOARD "35.156.182.231"
+#define MQTT_DASHBOARD "35.158.189.129"
 
 #define LOCATION_TOPIC "petracker/location"
 #define DISTRESS_TOPIC "petracker/distress"
@@ -36,14 +43,8 @@
 #define MQTT_CMD_TIMEOUT_MS 1500
 #define DEFAULT_KEEP_ALIVE_SEC 60
 #define PAYLOAD_SIZE 512u
-#define PAYLOAD_FORMAT "{" \
-                "\"ICCID\":\"%s\", " \
-                "\"OperatorName\":\"%s\", " \
-                "\"OperatorCode\":\"%d\", " \
-                "\"Technology\":\"%s\", " \
-                "\"Signal\":\"%d dBm\", " \
-				"\"Clicks\":%ld"       \
-                "}"
+//#define PAYLOAD_FORMAT "{\"NMEA\":\"%.*c\"}"
+//#define PAYLOAD_FORMAT "{*.c}"
 #define FAKE_PAYLOAD "{%d}" // TODO remove later
 
 #define DISTRESS_ENABLE "enable"
