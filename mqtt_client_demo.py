@@ -55,15 +55,18 @@ def subscribe(client: mqtt_client):
         if len(msg.payload) < 23:
             print("MQTT short message, doing nothing")
             return
-        loc = GPS_LOCATION_INFO(*struct.unpack("<3iBB9s", msg.payload[:23]))
+        loc = GPS_LOCATION_INFO(*struct.unpack("<iiiBB9s", msg.payload[:23]))
+        print(f"MQTT client received: {dict(loc._asdict())}")
         global current_location
-        current_location.latitude = loc.latitude * 1e-8
-        current_location.longitude = loc.longitude * 1e-8
+        current_location.latitude = loc.latitude * 1e-7
+        current_location.longitude = loc.longitude * 1e-7
         current_location.altitude = loc.altitude * 1e-2
         current_location.hdop = loc.hdop * 0.2
         current_location.fix_time = loc.fixtime.decode()
-        current_location.num_sats = loc.valid_fix_reserved1_num_sats & 0b00011111
-        current_location.valid_fix = (loc.valid_fix_reserved1_num_sats & 0b11000000) >> 6
+        current_location.num_sats = (loc.valid_fix_reserved1_num_sats & 0b11111000) >> 3
+        current_location.valid_fix = (loc.valid_fix_reserved1_num_sats & 0b00000011)# >> 6
+        print(f"num_sats={current_location.num_sats}, valid_fix={current_location.valid_fix}, in binary={loc.valid_fix_reserved1_num_sats:08b}")
+        print(f"current_location={current_location.__dict__}")
 
     client.subscribe(topic)
     client.on_message = on_message
@@ -84,7 +87,7 @@ HTML_CONTENT = """<!DOCTYPE html>
 <html>
     <head>
         <title> PeTracker</title>
-        <meta http-equiv="refresh" content="5" >
+        <meta http-equiv="refresh" content="10" >
     </head>
     <body>
         {}
