@@ -396,18 +396,18 @@ static int connectToBroker(MQTTCtx* mqttCtx) {
 }
 
 static size_t preparePayload(char* buff){
-  static const char* PAYLOAD_FORMAT = "{%*.c}";
+  static const char* PAYLOAD_FORMAT = "%*.c";
   GPS_LOCATION_INFO location = {0};
   memset(&location, 0, sizeof(GPS_LOCATION_INFO));
   GPSGetFixInformation(&location);
   char *location_bytes = (char*) &location;
 //  char payload[sizeof(GPS_LOCATION_INFO)+3] = "{000000000000000000000000}\0";
-  char payload[sizeof(GPS_LOCATION_INFO)+3] = {0};
+  char payload[sizeof(GPS_LOCATION_INFO)+1] = {0};
   sprintf(payload, PAYLOAD_FORMAT, sizeof(GPS_LOCATION_INFO), '0');
-  memcpy(payload+1, &location, sizeof(GPS_LOCATION_INFO));
+  memcpy(payload, &location, sizeof(GPS_LOCATION_INFO));
   memcpy(buff, payload, sizeof(payload));
   //  snprintf(buff, sizeof(GPS_LOCATION_INFO), PAYLOAD_FORMAT, location_bytes);
-  return sizeof(GPS_LOCATION_INFO)+2;
+  return sizeof(GPS_LOCATION_INFO);
   //  memset(buff, 0, len);
   //  MODEM_METADATA metaData = {0};
   //  GetModemMetadata(&metaData);

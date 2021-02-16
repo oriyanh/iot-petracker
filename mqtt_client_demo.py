@@ -1,17 +1,28 @@
 import random
+from dataclasses import dataclass
 
 from paho.mqtt import client as mqtt_client
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from collections import namedtuple
 import folium
 import threading
 import json
 import struct
+import requests
+GPS_LOCATION_INFO = namedtuple("GPS_LOCATION_INFO", ["latitude", "longitude", "altitude", "hdop", "valid_fix_reserved1_num_sats", "fixtime"])
 
-GPS_LOCATION_INFO = namedtuple("GPS_LOCATION_INFO", ["latitude", "longitude", "altitude", "hdop", "valid_fix", "reserved1", "num_sats", "fixtime"])
+@dataclass
+class GPSLocation:
+    latitude: float = 0.0
+    longitude: float = 0.0
+    altitude: float = 0.0
+    hdop: float = 0.0
+    valid_fix: int = 0
+    num_sats: int = 0
+    fix_time: str = ""
 
 
-
+current_location = GPSLocation()
 
 # broker = 'broker.mqttdashboard.com'
 broker = '35.158.189.129'
@@ -41,6 +52,18 @@ def subscribe(client: mqtt_client):
     def on_message(client, userdata, msg):
         payload = [f"{b:02X} " for b in msg.payload]
         print(f"Received `{payload}` from `{msg.topic}` topic")
+        if len(msg.payload) < 23:
+            print("MQTT short message, doing nothing")
+            return
+        loc = GPS_LOCATION_INFO(*struct.unpack("<3iBB9s", msg.payload[:23]))
+        global current_location
+        current_location.latitude = loc.latitude * 1e-8
+        current_location.longitude = loc.longitude * 1e-8
+        current_location.altitude = loc.altitude * 1e-2
+        current_location.hdop = loc.hdop * 0.2
+        current_location.fix_time = loc.fixtime.decode()
+        current_location.num_sats = loc.valid_fix_reserved1_num_sats & 0b00011111
+        current_location.valid_fix = (loc.valid_fix_reserved1_num_sats & 0b11000000) >> 6
 
     client.subscribe(topic)
     client.on_message = on_message
@@ -71,23 +94,17 @@ HTML_CONTENT = """<!DOCTYPE html>
 
 @app.route('/')
 def index():
-    global coords
+    global coords, current_location
+    coords[0] = current_location.latitude
+    coords[1] = current_location.longitude
     folium_map = folium.Map(location=coords, zoom_start=18)
     folium.Marker(
         location=coords,
         popup="Your fluffy!",
         icon=folium.Icon(icon="cloud"),
     ).add_to(folium_map)
-    coords[0] += 0.0001
-    coords[1] += 0.0001
     s= HTML_CONTENT.format(folium_map._repr_html_())
     return s
-
-@app.route('/update_location', methods=['POST'])
-def update_location():
-    print(request.form)
-
-
 
 if __name__ == '__main__':
     t = threading.Thread(target=run)
