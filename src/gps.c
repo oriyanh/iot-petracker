@@ -205,14 +205,16 @@ int32_t parseNMEACoordinate(const char* coord, size_t len)
     }
     for (loc = degreesPt-coord; loc < len; loc++)
     {
-        minutes *= 10;
-        degrees *= 10;
-        minutes += coord[loc] - '0';
         if ((coord + loc) == decimelPt)
         {
             loc++;
         }
+        minutes *= 10;
+        degrees *= 10;
+        minutes += coord[loc] - '0';
     }
+    minutes *= 1000;
+	degrees *= 10;
     logDebug("degrees=%d, minutes=%d, parsedCoord=%d",degrees, minutes, degrees + minutes/60);
     return degrees + minutes/60;
 }
