@@ -21,7 +21,7 @@ class GPSLocation:
     num_sats: int = 0
     fix_time: str = ""
 
-
+map_zoom = 18
 current_location = GPSLocation()
 
 # broker = 'broker.mqttdashboard.com'
@@ -30,6 +30,7 @@ port = 1883
 topic = "petracker/location"
 # generate client ID with pub prefix randomly
 client_id = f'python-mqtt-{random.randint(0, 100)}'
+
 # username = 'emqx'
 # password = 'public'
 
@@ -67,10 +68,21 @@ def subscribe(client: mqtt_client):
         current_location.valid_fix = (loc.valid_fix_reserved1_num_sats & 0b00000011)# >> 6
         print(f"num_sats={current_location.num_sats}, valid_fix={current_location.valid_fix}, in binary={loc.valid_fix_reserved1_num_sats:08b}")
         print(f"current_location={current_location.__dict__}")
-
+        publish(client)
     client.subscribe(topic)
     client.on_message = on_message
 
+
+def publish(client):
+    global current_location
+    msg = f"{current_location.latitude},{current_location.longitude}"
+    result = client.publish("petracker/current_location", msg) # TODO change topic to relevant user location topic
+    # result: [0, 1]
+    status = result[0]
+    if status == 0:
+        print(f"Send `{msg}` to topic `{topic}`")
+    else:
+        print(f"Failed to send message to topic {topic}")
 
 def run():
     client = connect_mqtt()
@@ -91,13 +103,13 @@ HTML_CONTENT = """<!DOCTYPE html>
     </head>
     <body>
         {}
-    </body>
+    </body> 
 </html>
 """
 
 @app.route('/')
 def index():
-    global coords, current_location
+    global coords, current_location, map_zoom
     coords[0] = current_location.latitude
     coords[1] = current_location.longitude
     folium_map = folium.Map(location=coords, zoom_start=18)
@@ -105,8 +117,14 @@ def index():
         location=coords,
         popup="Your fluffy!",
         icon=folium.Icon(icon="cloud"),
+        tooltip="Your fluffy"
     ).add_to(folium_map)
-    s= HTML_CONTENT.format(folium_map._repr_html_())
+    #folium_map.'zoomend', map.get_zoom()
+    # map_zoom = folium_map.options["zoom"]
+    # print(map_zoom)
+
+
+    s = HTML_CONTENT.format(folium_map._repr_html_())
     return s
 
 if __name__ == '__main__':
