@@ -1,6 +1,6 @@
 import random
-from dataclasses import dataclass
-
+from dataclasses import dataclass, asdict
+import datetime as dt
 from paho.mqtt import client as mqtt_client
 from flask import Flask, request, jsonify
 from collections import namedtuple
@@ -9,6 +9,7 @@ import threading
 import json
 import struct
 import requests
+
 GPS_LOCATION_INFO = namedtuple("GPS_LOCATION_INFO", ["latitude", "longitude", "altitude", "hdop", "valid_fix_reserved1_num_sats", "fixtime"])
 
 @dataclass
@@ -21,13 +22,15 @@ class GPSLocation:
     num_sats: int = 0
     fix_time: str = ""
 
-map_zoom = 18
 current_location = GPSLocation()
 
 # broker = 'broker.mqttdashboard.com'
 broker = '35.158.189.129'
 port = 1883
-topic = "petracker/location"
+location_raw_topic = "petracker/location_raw"
+location_parsed_topic = "petracker/location"
+distress_topic = "petracker/distress"
+
 # generate client ID with pub prefix randomly
 client_id = f'python-mqtt-{random.randint(0, 100)}'
 
@@ -53,6 +56,9 @@ def subscribe(client: mqtt_client):
     def on_message(client, userdata, msg):
         payload = [f"{b:02X} " for b in msg.payload]
         print(f"Received `{payload}` from `{msg.topic}` topic")
+        if msg.topic != location_raw_topic:
+            print(f"distress {msg.payload.decode()}")
+            return
         if len(msg.payload) < 23:
             print("MQTT short message, doing nothing")
             return
@@ -69,20 +75,22 @@ def subscribe(client: mqtt_client):
         print(f"num_sats={current_location.num_sats}, valid_fix={current_location.valid_fix}, in binary={loc.valid_fix_reserved1_num_sats:08b}")
         print(f"current_location={current_location.__dict__}")
         publish(client)
-    client.subscribe(topic)
+    client.subscribe([(location_raw_topic, 1), (distress_topic, 1)])
+
     client.on_message = on_message
 
 
 def publish(client):
     global current_location
-    msg = f"{current_location.latitude},{current_location.longitude}"
-    result = client.publish("petracker/current_location", msg) # TODO change topic to relevant user location topic
+    msg = json.dumps(asdict(current_location), sort_keys=True)
+    result = client.publish(location_parsed_topic, msg, retain=True)
     # result: [0, 1]
     status = result[0]
     if status == 0:
-        print(f"Send `{msg}` to topic `{topic}`")
+        print(f"Send `{msg}` to topic `{location_parsed_topic}`")
     else:
-        print(f"Failed to send message to topic {topic}")
+        print(f"Failed to send message to topic {location_parsed_topic}")
+
 
 def run():
     client = connect_mqtt()
@@ -92,7 +100,6 @@ def run():
 
 
 app = Flask(__name__)
-start_coords = (46.9540700, 142.7360300)
 
 coords = [46.9540700, 142.7360300]
 HTML_CONTENT = """<!DOCTYPE html>
@@ -109,23 +116,24 @@ HTML_CONTENT = """<!DOCTYPE html>
 
 @app.route('/')
 def index():
-    global coords, current_location, map_zoom
+    global coords, current_location
     coords[0] = current_location.latitude
     coords[1] = current_location.longitude
-    folium_map = folium.Map(location=coords, zoom_start=18)
+    folium_map = folium.Map(location=coords, zoom_start=18, zoom_control=False)
+    utc_parse = dt.datetime.strptime(current_location.fix_time, "%H%M%S%f")
+    popup_format = "coords: %d,%d<br>altitude: %d<br>utc time: %s:%s:%s" % \
+                   (current_location.latitude, current_location.longitude,
+                    current_location.altitude,
+                    utc_parse.hour, utc_parse.minute, utc_parse.second)
     folium.Marker(
         location=coords,
-        popup="Your fluffy!",
-        icon=folium.Icon(icon="cloud"),
+        popup=folium.Popup(popup_format, max_width=200),
+        icon=folium.Icon(icon="fa-paw", prefix="fa"),
         tooltip="Your fluffy"
     ).add_to(folium_map)
-    #folium_map.'zoomend', map.get_zoom()
-    # map_zoom = folium_map.options["zoom"]
-    # print(map_zoom)
-
-
     s = HTML_CONTENT.format(folium_map._repr_html_())
     return s
+
 
 if __name__ == '__main__':
     t = threading.Thread(target=run)
