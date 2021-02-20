@@ -9,7 +9,7 @@
 #include "wolfmqtt/mqtt_types.h"
 #include "stdbool.h"
 
-#define MAX_NUM_OPS 10
+#define MAX_NUM_OPERATORS 10
 
 static bool registerToNetwork = true;
 
@@ -24,7 +24,10 @@ static int detectCellularNetworks(OPERATOR_INFO* opList, int *numOpsFound);
  */
 static int registerCellularNetwork(OPERATOR_INFO* opList, int numOpsFound);
 
-int registeringToNetworkFlow();
+/**
+ * Registers to a cellular network, wrapper function for detectCellularNetworks and registerCellularNetwork
+ */
+static int registeringToNetworkFlow();
 
 /**
  * Runs cellularInit->CheckModem->detectNetworks->register->refresh. This function is called in SocketInit
@@ -33,241 +36,249 @@ static int cellularConnectFlow(void);
 
 int SocketInit(const char *host, word16 port)
 {
+  logInfo("SocketInit(%s:%d)", host, port);
+  int result = cellularConnectFlow();
+  if (result < 0) {
+    logError("SocketInit failed cellularConnectFlow");
+    return result;
+  }
 
-    if (cellularConnectFlow() < 0) {
-        logError("Failed to open socket, aborting");
-        return -1;
-    }
+  result = CellularSetupInternetConnectionProfile(20);
+  if (result < 0)
+  {
+    logError("CellularSetupInternetConnectionProfile failed");
+    return result;
+  }
 
-    logInfo("SocketInit(%s:%d)", host, port);
+  result = CellularSetupInternetServiceSetupProfile(host, (unsigned int)port, 200);
+  if (result < 0)
+  {
+    logError("CellularSetupInternetServiceSetupProfile failed");
+    return result;
+  }
 
-    if (CellularSetupInternetConnectionProfile(20) < 0)
-    {
-	logError("CellularSetupInternetConnectionProfile failed");
-	return -1;
-    }
-
-
-    if (CellularSetupInternetServiceSetupProfile(host, (unsigned int)port, 200) < 0)
-    {
-    	logError("CellularSetupInternetServiceSetupProfile failed");
-    	return -1;
-    }
-
-    logInfo("SocketInit success");
-    return 0;
+  logInfo("SocketInit success");
+  return result;
 }
 
 int SocketConnect(void)
 {
-    logInfo("SocketConnect");
-    if (CellularConnect() < 0)
-    {
-        logError("Failed to create TCP connection. Reason:");
-        CellularClose();
-        return -1;
-    }
+  logInfo("SocketConnect");
+  int result = CellularConnect();
+  if (result < 0)
+  {
+    logError("SocketConnect fails at CellularConnect");
+    CellularClose();
+    return result;
+  }
 
-    logInfo("SocketConnect success");
-
-    return 0;
+  logInfo("SocketConnect success");
+  return 0;
 }
 
 int SocketWrite(const unsigned char *payload, unsigned int len)
 {
-    logInfo("SocketWrite %d bytes", len);
+  logInfo("SocketWrite %d bytes", len);
 
-    logDebug("Writing...");
-    int numBytesSent = CellularWrite(payload , len);
-    if( numBytesSent < 0)
-    {
-        logError("Failed SocketWrite. Reason");
-        return -1;
-    }
+  int numBytesSent = CellularWrite(payload , len);
+  if( numBytesSent < 0)
+  {
+    logError("Failed SocketWrite at CellularWrite");
+  }
+  else
+  {
+    logDebug("Successfully wrote %d bytes to socket", numBytesSent);    
+  }
 
-    logDebug("Successfully wrote %d bytes to socket", numBytesSent);
-    return numBytesSent;
+  return numBytesSent;
 }
 
-int SocketRead(unsigned char *buf, unsigned int max_len, unsigned int timeout_ms) {
-    logInfo("SocketRead %u bytes,timeout %ums", max_len, timeout_ms);
-    int numBytesReceived = CellularRead(buf,max_len,timeout_ms);
-    if(numBytesReceived < 0)
-    {
-        logError("Failed SocketRead. Reason");
-        return -1;
-    }
+int SocketRead(unsigned char *buf, unsigned int max_len, unsigned int timeout_ms)
+{
+  logInfo("SocketRead %u bytes,timeout_ms=%u", max_len, timeout_ms);
+  int numBytesReceived = CellularRead(buf,max_len,timeout_ms);
+  if(numBytesReceived < 0)
+  {
+    logError("Failed SocketRead at CellularRead");
+  }
 
-    logInfo("SocketRead success", numBytesReceived);
+  else
+  {
+    logInfo("SocketRead success, read %d bytes", numBytesReceived);
+  }
 
-    return (int) numBytesReceived;
+  return numBytesReceived;
 }
 
-int SocketClose() {
-    logInfo("SocketClose");
-    return CellularClose();
-}
-int SocketDisable() {
-	logInfo("SocketDisable");
-	registerToNetwork = true;
-	int retval = CellularDisable();
-	//TODO add cellular init after disable and registration to the network.
-	if (retval < 0) {
-		logError("Failed CellularDisable, aborting.");
-//		return -1;
-	}
-	retval = cellularConnectFlow();
-	if (retval < 0) {
-		logError("Failed Cellular-reconnect, aborting.");
-		return -1;
-	}
-return 0;
+int SocketClose()
+{
+  logInfo("SocketClose");
+  return CellularClose();
 }
 
+int SocketDisable()
+{
+  logInfo("SocketDisable");
+  registerToNetwork = true;
+  int retval = CellularDisable();
+  if (retval < 0)
+  {
+    logError("SocketDisable failed CellularDisable, skipping to cellularConnectFlow");
+  }
 
-int cellularConnectFlow() {
-    logInfo("cellularConnectFlow");
-    int result;
+  retval = cellularConnectFlow();
+  if (retval < 0)
+  {
+    logError("SocketDisable failed cellularConnectFlow");
+  }
 
-    result = CellularInit(MODEM_PORT);
+  return retval;
+}
+
+int cellularConnectFlow()
+{
+  logInfo("cellularConnectFlow");
+  int result = -1;
+
+  result = CellularInit();
+  if (result < 0) {
+    logError("cellularConnectFlow failed CellularInit, aborting.");
+    return result;
+  }
+
+  logInfo("cellularConnectFlow validation with CellularCheckModem");
+  result = CellularCheckModem();
+  if (result < 0) {
+    logError("cellularConnectFlow failed CellularCheckModem, aborting.");
+    return result;
+  }
+
+  if (registerToNetwork)
+  {
+    logInfo("registerToNetwork=true");
+    result = registeringToNetworkFlow();
+    registerToNetwork = false;
     if (result < 0) {
-        logError("Failed CellularInit, aborting.");
-//        CellularDisable();
-        return -1;
+      logError("cellularConnectFlow failed registeringToNetworkFlow, aborting.");
+      return result;
     }
-    logInfo("CellularInit success!");
+    logInfo("CellularRegistered!");
+  }
 
-    logInfo("Validating cellularConnectFlow");
-    result = CellularCheckModem();
-    if (result < 0) {
-        logError("Failed to validate connectivity, aborting.");
-//        CellularDisable();
-        return -1;
-    }
-    logInfo("CellularCheckModem validated!");
-    if (registerToNetwork){
-    	// TODO checke if this works ok
-		result = registeringToNetworkFlow();
-		registerToNetwork = false;
-		if (result < 0) {
-				logError("Failed to validate connectivity, aborting.");
-// 				CellularDisable();
-				return -1;
-			}
-		logInfo("CellularRegistered!");
-    }
-    return 0;
+  logInfo("cellularConnectFlow success");
+  return result;
 }
 
-int registeringToNetworkFlow(){
-	    if (registerToNetwork) {
-			logInfo("detectCellularNetworks");
-			logDebug("allocating opList");
-			OPERATOR_INFO* opList = NULL;
-			opList = (OPERATOR_INFO*) calloc(MAX_NUM_OPS, sizeof(OPERATOR_INFO));
-			if (opList == NULL) {
-				logError("Memory allocation error for operator list, aborting.");
-//				CellularDisable();
-				return -1;
-			}
+int registeringToNetworkFlow()
+{
+  logInfo("registeringToNetworkFlow");
+  logDebug("allocating opList");
+  OPERATOR_INFO opList[MAX_NUM_OPERATORS];
+  memset(&opList, 0, sizeof(OPERATOR_INFO)*MAX_NUM_OPERATORS);
+  if (opList == NULL) {
+    logError("Memory allocation error for operator list, aborting.");
+    return -1;
+  }
 
-			int numOpsFound = 0;
-			if (detectCellularNetworks(opList, &numOpsFound)) {
-				logError("Failed detectCellularNetworks");
-				free(opList);
-				opList = NULL;
-//				CellularDisable(); //TODO see if there is a need to do disable here - we do it anyway in the exit flow
-				return -1;
-			}
+  int numOpsFound = 0;
+  if (detectCellularNetworks(opList, &numOpsFound)) {
+    logError("Failed detectCellularNetworks");
+    return -1;
+  }
 
-			logInfo("registerCellularNetwork");
-			if (registerCellularNetwork(opList, numOpsFound)) {
-				logError("Failed registerCellularNetwork");
-				free(opList);
-				opList = NULL;
-//				CellularDisable();
-				return -1;
-			}
+  logInfo("registerCellularNetwork");
+  if (registerCellularNetwork(opList, numOpsFound)) {
+    logError("Failed registerCellularNetwork");
+    return -1;
+  }
 
-			free(opList);
-			opList = NULL;
-			registerToNetwork = false;
-		}
+  registerToNetwork = false;
+  return 0;
 }
 
 int detectCellularNetworks(OPERATOR_INFO* opList, int *numOpsFound) {
-    logDebug("querying modem for cellular operators");
-    int result = CellularGetOperators(opList, MAX_NUM_OPS, numOpsFound);
-    if (result == 0) {
-        logInfo("\tFound %d cellular networks!", *numOpsFound);
-    }
-    else if (numOpsFound == 0) {
-        logError("Did not find any operators");
-        free(opList);
-        return -1;
-    }
-    else {
-        logError("Got some sort of error");
-        perror("System error is (if occurred):");
-        free(opList);
-        return -1;
-    }
-    return 0;
+  logInfo("detectCellularNetworks");
+  *numOpsFound = 0;
+  int result = CellularGetOperators(opList, MAX_NUM_OPERATORS, numOpsFound);
+  if (result < 0)
+  {
+    logError("detectCellularNetworks failed");
+    return result;
+  }
+  if (*numOpsFound == 0)
+  {
+    logError("detectCellularNetworks failed - no operators");
+    return -1;
+  }
+
+  logInfo("\tFound %d cellular networks!", *numOpsFound);
+  return 0;
 }
 
-int registerCellularNetwork(OPERATOR_INFO* opList, int numOpsFound) {
-    int result = 0;
-    int modeForce = 1;
-    int modeDisconnect = 2;
-    int registrationStatus = 0;
-    int isRegistered = 0;
-    logInfo("CellularSetOperator(modeDisconnect, NULL)");
+int registerCellularNetwork(OPERATOR_INFO* opList, int numOpsFound)
+{
+  logInfo("registerCellularNetwork");
+  int result = 0;
+  int modeForce = 1;
+  int modeDisconnect = 2;
+  int registrationStatus = 0;
+  int isRegistered = 0;
+  logInfo("CellularSetOperator(modeDisconnect, NULL)");
+  if (CellularSetOperator(modeDisconnect, NULL) < 0)
+  {
+    logError("detectCellularNetworks failed at modeDisconnect");
+    return -1;
+  }
+
+  OPERATOR_INFO selectedOp = {0};
+  for (int i=0; i < numOpsFound; i++)
+  {
+    logInfo("CellularSetOperator attempt %d/%d", i+1, numOpsFound);
+    logInfo("network name=%s;code=%d;ACT=%s;reg status=%d", 
+            opList[i].operatorName, opList[i].operatorCode, opList[i].accessTechnology, registrationStatus);
+    result = CellularSetOperator(modeForce, &opList[i]);
+    if (result == 0)
+    {
+      for (int j=0; j < 3; j++)
+      {
+        if (CellularGetRegistrationStatus(&registrationStatus) < 0)
+        {
+          logError("Failed CellularGetRegistrationStatus");
+          return -1;
+        }
+
+        if (registrationStatus == 1 || registrationStatus == 5)
+        {
+          logDebug("CellularSetOperator success, reg status=%d", registrationStatus);
+          isRegistered = 1;
+          selectedOp = opList[i];
+          break;
+        }
+
+        logWarn("fail AT+CREG=%d, retrying in 5sec", registrationStatus);
+        sleepMs(5000); // sleep for 5 seconds to see if AT+CREG? status is valid
+      }
+
+      if (isRegistered)
+      {
+        break;
+      }
+    }
+
+    logWarn("CellularGetRegistrationStatus fail, disconnecting");
     if (CellularSetOperator(modeDisconnect, NULL)) {
-        logError("Failed at disconnecting from cellular network, exiting program");
-        return -1;
+      logError("detectCellularNetworks failed at modeDisconnect");
+      return -1;
     }
-    OPERATOR_INFO selectedOp = {0};
-    for (int i=0; i < numOpsFound; i++) {
-        logInfo("\tAttempt %d / %d to register to a cellular network:", i+1, numOpsFound);
-        logInfo("\t\tnetwork name: '%s', network code %d, ACT '%s', registration status: %d", 
-                    opList[i].operatorName, opList[i].operatorCode, opList[i].accessTechnology, registrationStatus);
-        result = CellularSetOperator(modeForce, &opList[i]);
-        if (result == 0) {
-            for (int j=0; j < 3; j++)
-	    {
-	      if (CellularGetRegistrationStatus(&registrationStatus) < 0) {
-		  logError("Failed CellularGetRegistrationStatus");
-		  return -1;
-	      }
-	      if (registrationStatus == 1 || registrationStatus == 5) {
-		  logDebug("\tSuccessfully registered to network with registration status: %d", registrationStatus);
-		  isRegistered = 1;
-		  selectedOp = opList[i];
-		  break;
-	      }
-	      logWarn("fail AT+CREG=%d, retrying in 5sec", registrationStatus);
-	      sleepMs(5000); // sleep for 5 seconds to see if AT+CREG? status is valid
-	    }
-            if (isRegistered)
-	    {
-        	break;
-	    }
-        }
+  }
 
-        logWarn("\tCould not register, disconnecting");
-        if (CellularSetOperator(modeDisconnect, NULL)) {
-            logError("Failed at disconnecting from cellular network, exiting program");
-            return -1;
-        }
-    }
+  if (!isRegistered) {
+    logError("registerCellularNetwork fail");
+    return -1;
+  }
 
-    if (!isRegistered) {
-        logError("Failed to register to a cellular network, exiting program");
-        return -1;
-    }
-
-    logInfo("registerCellularNetwork Success! '%s' (code=%d,ACT='%s',reg status=%d)", 
-                    selectedOp.operatorName, selectedOp.operatorCode, selectedOp.accessTechnology, registrationStatus);
-    return 0;
+  logInfo("registerCellularNetwork Success!");
+  logDebug("Network: '%s' (code=%d,ACT='%s',reg status=%d)", 
+          selectedOp.operatorName, selectedOp.operatorCode, selectedOp.accessTechnology, registrationStatus);
+  return 0;
 }
-

@@ -1,11 +1,3 @@
-/*
- * config.h
- *
- *  Created on: 31 áãöî× 2020
- *      Author: Maya lulko
- */
-
-
 #ifndef SRC_CONFIG_H_
 #define SRC_CONFIG_H_
 
@@ -32,20 +24,16 @@ typedef enum _SERIAL_PORT {MODEM_PORT = 0, GPS_PORT} SERIAL_PORT;
 #define SYS_ENDL "\n"
 
 
-
-//#define MQTT_DASHBOARD "52.29.249.84"
+#define MQTT_DASHBOARD "52.29.249.84"
 //#define MQTT_DASHBOARD "35.156.182.231"
-#define MQTT_DASHBOARD "35.158.189.129"
+//#define MQTT_DASHBOARD "35.158.189.129"
 
-#define LOCATION_TOPIC "petracker/location"
+#define LOCATION_TOPIC "petracker/location_raw"
 #define DISTRESS_TOPIC "petracker/distress"
 #define MQTT_PORT 1883
-#define MQTT_CMD_TIMEOUT_MS 1500
-#define DEFAULT_KEEP_ALIVE_SEC 60
-#define PAYLOAD_SIZE 512u
-//#define PAYLOAD_FORMAT "{\"NMEA\":\"%.*c\"}"
-//#define PAYLOAD_FORMAT "{*.c}"
-#define FAKE_PAYLOAD "{%d}" // TODO remove later
+#define MQTT_CMD_TIMEOUT_MS 5000
+#define DEFAULT_KEEP_ALIVE_SEC 120
+#define MQTT_PAYLOAD_SIZE 512u
 
 #define DISTRESS_ENABLE "enable"
 #define DISTRESS_DISABLE "disable"

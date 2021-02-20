@@ -1,11 +1,11 @@
-#ifndef IOT_EX1_SOCKET_H
-#define IOT_EX1_SOCKET_H
+#ifndef IOT_SOCKET_H
+#define IOT_SOCKET_H
 #include "wolfmqtt/mqtt_types.h"
 
 /**
  * Initializes a TCP socket.
- * @param host is the destination address as DNS: en8wtnrvtnkt5.x.pipedream.net, or as IPv4: 35.169.0.97.
- * @param port the communication endpoint, as string, e.g.:
+ * @param host is the destination address as IPv4: 35.169.0.97.
+ * @param port the communication endpoint
  * @return 0 on success, -1 on failure.
  */
 int SocketInit(const char *host, word16 port);
@@ -35,11 +35,15 @@ int SocketWrite(const byte *payload, unsigned int len);
 int SocketRead(byte *buf, unsigned int max_len, unsigned int timeout_ms);
 
 /**
- * Closes the established connection.
+ * Closes the established connection/socket
  * @return 0 on success, -1 on failure.
  */
 int SocketClose();
 
+/**
+ * Closes the socket and resets all configurations
+ * @return 0 on success, -1 on failure.
+ */
 int SocketDisable();
 
-#endif //IOT_EX1_SOCKET_H
+#endif //IOT_SOCKET_H

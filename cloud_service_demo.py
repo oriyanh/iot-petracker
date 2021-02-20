@@ -119,7 +119,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <html>
     <head>
         <title> PeTracker</title>
-        <meta http-equiv="refresh" content="10" >
+        <meta http-equiv="refresh" content="5" >
     </head>
     <body>
         {}

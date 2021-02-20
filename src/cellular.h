@@ -1,31 +1,36 @@
-#ifndef IOT_EX5_CELLULAR_H
-#define IOT_EX5_CELLULAR_H
+#ifndef IOT_CELLULAR_H
+#define IOT_CELLULAR_H
 
-typedef struct __OPERATOR_INFO {
-    char operatorName[10]; // Long name. See <format> under +COPS.
-    int operatorCode; // Short code. See <format> under +COPS.
-    char accessTechnology[4]; // "2G" or "3G"
- } OPERATOR_INFO;
+typedef struct __OPERATOR_INFO
+{
+  char operatorName[10];  // Long name. See <format> under +COPS.
+  int operatorCode;  // Short code. See <format> under +COPS.
+  char accessTechnology[4];  // "2G" or "3G"
+} OPERATOR_INFO;
 
-typedef struct __SIGNAL_INFO {
-    int signal_power; // In 2G: dBm. In 3G: RSCP. See ^SMONI responses.
-    int EC_n0; // In 3G only. See ^SMONI responses.
-    char accessTechnology[4]; // "2G" or "3G"
-    } SIGNAL_INFO;
+typedef struct __SIGNAL_INFO
+{
+  int signal_power; // In 2G: dBm. In 3G: RSCP. See ^SMONI responses.
+  int EC_n0; // In 3G only. See ^SMONI responses.
+  char accessTechnology[4]; // "2G" or "3G"
+} SIGNAL_INFO;
 
-typedef struct __MODEM_METADATA{
-	char ccid[23];
-	OPERATOR_INFO op_info;
-	int csq;
-	} MODEM_METADATA;
+typedef struct __MODEM_METADATA
+{
+  char ccid[23];
+  OPERATOR_INFO op_info;
+  int csq;
+} MODEM_METADATA;
 
 /**
  * Initialize whatever is needed to start working with the cellular modem (e.g. the serial port). Returns 0 on success, and -1 on failure.
- * @param port
  * @return
  */
-int CellularInit(char *port);
+int CellularInit(void);
 
+/**
+ * Soft reboot of cellular modem + verify modem has initialized correctly
+ */
 int CellularReboot(void);
 
 /**
@@ -68,43 +73,12 @@ int CellularGetOperators(OPERATOR_INFO *opList, int maxops, int *numOpsFound);
  * If mode=0, sets the modem to automatically register with an operator (ignores the operatorCode parameter).
  * If mode=1, forces the modem to work with a specific operator, given in operatorCode.
  * If mode=2, deregisters from the network (ignores the operatorCode parameter).
- * See the ג€�+COPS=<mode>,...ג€� command for more details.
+ * See the “+COPS=<mode>,...” command for more details.
  * @param mode
  * @param operatorCode
  * @return
  */
 int CellularSetOperator(int mode, OPERATOR_INFO* op);
-
-/**
- * Returns -1 if the modem did not respond or respond with an error (note, CSQ=99 is also an error!)
- * Returns 0 if the command was successful and the signal quality was obtained from the modem.
- * In that case, the csq parameter will be populated with the numeric value between -113dBm and -51dBm
- * @param csq
- * @return
- */
-int CellularGetSignalQuality(int *csq);
-
-/**
- * Returns -1 if the modem did not respond or respond with an error.
- * Returns 0 if the command was successful and the ICCID was obtained from the modem.
- * iccid is a pointer to a char buffer, which is allocated by the caller of this function.
- * The buffer size is maxlen chars. The obtained ICCID will be placed into the iccid buffer as a null-terminated string.
- * @param iccid
- * @param maxlen
- * @return
- */
-int CellularGetICCID(char* iccid, int maxlen);
-
-/**
- * Returns -1 if the modem did not respond, respond with an error, respond with SEARCH or NOCONN.
- * Returns 0 if the command was successful and the signal info was obtained from the modem.
- * sigInfo is a pointer to a struct, which is allocated by the caller of this function.
- * The obtained info will be placed into the sigInfo struct.
- * @param sigInfo
- * @return
- */
-int CellularGetSignalInfo(SIGNAL_INFO *sigInfo);
-
 
 /**
  * Initialize an internet connection profile (AT^SICS) with inactTO=inact_time_sec and
@@ -161,4 +135,4 @@ int CellularRead(unsigned char *buf, unsigned int max_len, unsigned int timeout_
  */
 void GetModemMetadata(MODEM_METADATA *metaData);
 
-#endif //IOT_EX5_CELLULAR_H
+#endif //IOT_CELLULAR_H

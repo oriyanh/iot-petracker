@@ -1,20 +1,3 @@
-/***************************************************************************//**
- * @file
- * @brief Energy Mode demo for SLSTK3402A
- *******************************************************************************
- * # License
- * <b>Copyright 2018 Silicon Laboratories Inc. www.silabs.com</b>
- *******************************************************************************
- *
- * The licensor of this software is Silicon Laboratories Inc. Your use of this
- * software is governed by the terms of Silicon Labs Master Software License
- * Agreement (MSLA) available at
- * www.silabs.com/about-us/legal/master-software-license-agreement. This
- * software is distributed to you in Source Code format and is governed by the
- * sections of the MSLA applicable to Source Code.
- *
- ******************************************************************************/
-
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -43,28 +26,9 @@
 
 
 /**
- * Setup PB0 and PB1 interrupts
- */
-static void GpioSetup(void);
-
-/**
- * Enable PB0 and PB1 interrupts
- */
-static void GpioEnable();
-
-/**
- * Disable PB0 and PB1 interrupts
- */
-static void GpioDisable();
-
-/**
  * Setup for on-device display
  */
 static void DisplaySetUp(void);
-/**
- * Redraws display
- */
-static void drawScreen(void);
 
 
 /**
@@ -130,16 +94,12 @@ static int DitressListener(MqttClient *client, MqttMessage *message, byte msg_ne
 
 static byte MQTT_TX_BUFFER[BUFFER_SIZE] = {0};
 static byte MQTT_RX_BUFFER[BUFFER_SIZE] = {0};
-static char MQTT_PAYLOAD_BUFFER[PAYLOAD_SIZE] = {0};
+static char MQTT_PAYLOAD_BUFFER[MQTT_PAYLOAD_SIZE] = {0};
 
-static volatile bool redrawScreen = false; /* Draw screen again or not*/
 static volatile bool distress = false;
 static volatile bool connected = false;
 
 static DISPLAY_Device_t displayDevice;    /* Display device handle.         */
-int volatile msgCount=0; //TODO remove - this is for debug purposes
-
-static char RAW_PAYLOAD[PAYLOAD_SIZE] = {0};
 
 /***************************************************************************//**
  * @brief  Main function
@@ -161,81 +121,77 @@ int main(void)
   CMU_ClockSelectSet(cmuClock_HF, cmuSelect_HFXO);
   CMU_OscillatorEnable(cmuOsc_HFRCO, false, false);
 
-  /* Setup GPIO for pushbuttons. */
-  GpioSetup();
-  GpioEnable();
-
   setupTimer();
   /* Setup on-device display*/
   DisplaySetUp();
 
-  /* Triggers initial screen draw*/
-  redrawScreen = true;
-  // TODO do connect + registration to network.
   MQTTCtx mqttCtx;
 
   initMqttCtx(&mqttCtx);
   int retval = 0;
   logInfo("initMqttClient");
   retval = initMqttClient(&mqttCtx);
-  if (retval < 0) {
-	  MqttExitRoutine(retval, "initMqttClient Error", &mqttCtx);
-	  while(1);
+  if (retval < 0)
+  {
+    MqttExitRoutine(retval, "initMqttClient Error", &mqttCtx);
+    while(1);
 
   }
 
-  while (1) {
-	  if (!connected){
-//		  retval = GPSInit();
-		  retval = MqttConnectFlow(&mqttCtx);
-		  if (retval<0){
-			  MqttExitRoutine(retval, "connectFlow error", &mqttCtx);
-		  }
-		  else{
-			  connected = true;
-		  }
-	  }
-	  if (connected){
-		  retval = publishMessage(&mqttCtx);
-		  if (retval < 0){
-			  MqttExitRoutine(retval, "publish Error", &mqttCtx);
-			  connected = false;
-		  }
-	  }
-	  if (!distress){
-		  if (connected)
-		  {
-			  MqttExitRoutine(retval, "going to sleep", &mqttCtx);
-			  connected = false;
-		  }
-		  sleepMs(60000);
-	  }
-	  else{
-		  sleepMs(10000);
-	  }
-
-	  if (redrawScreen) {
-		  drawScreen();
-	  }
+  while (1)
+  {
+    if (!connected)
+    {
+      retval = MqttConnectFlow(&mqttCtx);
+      if (retval < 0)
+      {
+        MqttExitRoutine(retval, "connectFlow error", &mqttCtx);
+      }
+      else
+      {
+        connected = true;
+      }
+    }
+    if (connected)
+    {
+      retval = publishMessage(&mqttCtx);
+      if (retval < 0){
+        MqttExitRoutine(retval, "publish Error", &mqttCtx);
+        connected = false;
+      }
+    }
+    if (!distress)
+    {
+      if (connected)
+      {
+        MqttExitRoutine(retval, "going to sleep", &mqttCtx);
+        connected = false;
+      }
+      sleepMs(60000);
+    }
+    else
+    {
+      sleepMs(10000);
+    }
   }
 }
 
-int MqttConnectFlow(MQTTCtx* mqttCtx){
-  logInfo("start MqttFlow");
+int MqttConnectFlow(MQTTCtx* mqttCtx)
+{
+  logInfo("MqttConnectFlow");
   int retval=0;
-  logInfo("GPSInit()");
   logInfo("broker: %s:%d", MQTT_DASHBOARD, MQTT_PORT);
   GPSInit();
-  logInfo("connectToBroker");
   retval = connectToBroker(mqttCtx);
-  if (retval < 0) {
-	  return MqttExitRoutine(retval, "connectToBroker Error", mqttCtx);
+  if (retval < 0)
+  {
+    return MqttExitRoutine(retval, "connectToBroker Error", mqttCtx);
   }
 
-  logInfo("subscribeMessage");
   retval = subscribeToTopic(mqttCtx);
-  if (retval < 0){
-      return MqttExitRoutine(retval, "publishMessage Error", mqttCtx);
+  if (retval < 0)
+  {
+    return MqttExitRoutine(retval, "subscribeToTopic Error", mqttCtx);
   }
 
   return MQTT_CODE_SUCCESS;
@@ -261,7 +217,8 @@ static void initMqttCtx(MQTTCtx* mqttCtx) {
   mqttCtx->net = network;
 }
 
-static int initMqttClient(MQTTCtx* mqttCtx) {
+static int initMqttClient(MQTTCtx* mqttCtx)
+{
   MqttClient client;
   memset(&client, 0, sizeof(MqttClient));
   mqttCtx->client.ctx = &mqttCtx;
@@ -277,8 +234,6 @@ static int initMqttClient(MQTTCtx* mqttCtx) {
 
   logInfo("MqttClientNet_Init");
   return MqttClientNet_Init(mqttCtx->client.net, mqttCtx);
-//  return 0;
-
 }
 
 /**
@@ -290,74 +245,55 @@ static int initMqttClient(MQTTCtx* mqttCtx) {
  * @return
  */
 static int DitressListener(MqttClient *client, MqttMessage *message,
-                           byte msg_new, byte msg_done) {
-  logInfo("There is a message call back!");
+                           byte msg_new, byte msg_done)
+{
+  logInfo("DitressListener callback");
   byte buf[BUFFER_SIZE + 1];
   word32 len;
-  MQTTCtx* mqttCtx = (MQTTCtx*) client->ctx;
 
-  (void)mqttCtx;
-
-  if (msg_new) {
+  if (msg_new)
+  {
     /* Determine min size to dump */
     len = message->topic_name_len;
-    if (len > BUFFER_SIZE) {
+    if (len > BUFFER_SIZE)
+    {
       len = BUFFER_SIZE;
     }
     XMEMCPY(buf, message->topic_name, len);
     buf[len] = '\0'; /* Make sure its null terminated */
-// todo make sure that we do not need to compare to NULL
-    if (strstr(buf, DISTRESS_ENABLE)){
-
-    	logInfo("distress enabled");
-    	distress = true;
-    	redrawScreen =true;
+    if (strstr((char*)buf, DISTRESS_ENABLE) != NULL)
+    {
+      logInfo("distress enabled");
+      distress = true;
     }
-// todo make sure that we do not need to compare to NULL
-    else if (strstr(buf, DISTRESS_DISABLE)){
-    	logInfo("distress disabled");
-    	distress = false;
-    	redrawScreen =true;
-	}
-    logInfo("Payload (%d - %d): %s",
-               message->buffer_pos, message->buffer_pos + len, buf);
-    if (msg_done) {
-        PRINTF("MQTT Message: Done");
+    else if (strstr((char*)buf, DISTRESS_DISABLE) != NULL)
+    {
+      logInfo("distress disabled");
+      distress = false;
     }
-
-    /* Print incoming message */
-    logInfo("MQTT Message: Topic %s, Qos %d, Len %u",
-            buf, message->qos, message->total_len);
-
   }
 
   len = message->buffer_len;
-  if (len > BUFFER_SIZE) {
+  if (len > BUFFER_SIZE)
+  {
     len = BUFFER_SIZE;
   }
-  XMEMCPY(buf, message->buffer, len);
+  memcpy(buf, message->buffer, len);
   buf[len] = '\0'; /* Make sure its null terminated */
-  if (strstr(buf, DISTRESS_ENABLE)){
+  if (strstr((char*)buf, DISTRESS_ENABLE) != NULL)
+  {
     logInfo("distress enabled");
     distress = true;
-    redrawScreen =true;
   }
-  else if (strstr(buf, DISTRESS_DISABLE)){
+  else if (strstr((char*)buf, DISTRESS_DISABLE) != NULL)
+  {
     logInfo("distress disabled");
     distress = false;
-    redrawScreen =true;
-  }
-  logInfo("Payload (%d - %d): %s",
-          message->buffer_pos, message->buffer_pos + len, buf);
-  if (msg_done) {
-    PRINTF("MQTT Message: Done");
   }
 
   /* Return negative to terminate publish processing */
   return MQTT_CODE_SUCCESS;
 }
-
-
 
 static void initConnectPacket(MQTTCtx *mqttCtx)
 {
@@ -385,11 +321,14 @@ static void initConnectPacket(MQTTCtx *mqttCtx)
 }
 
 static int connectToBroker(MQTTCtx* mqttCtx) {
-  logDebug("connectToBroker");
+  logInfo("connectToBroker");
   int retval = MqttClient_NetConnect(&(mqttCtx->client), mqttCtx->host, mqttCtx->port, mqttCtx->cmd_timeout_ms, 0,NULL);
-  if (retval < 0) {
+  if (retval < 0)
+  {
+    logInfo("MqttClient_NetConnect fail");
     return retval;
   }
+
   initConnectPacket(mqttCtx);
   retval = MqttClient_Connect(&(mqttCtx->client), &(mqttCtx->connect));
   return retval;
@@ -399,20 +338,16 @@ static size_t preparePayload(char* buff){
   static const char* PAYLOAD_FORMAT = "%*.c";
   GPS_LOCATION_INFO location = {0};
   memset(&location, 0, sizeof(GPS_LOCATION_INFO));
-  GPSGetFixInformation(&location);
-  char *location_bytes = (char*) &location;
-//  char payload[sizeof(GPS_LOCATION_INFO)+3] = "{000000000000000000000000}\0";
+  if (!GPSGetFixInformation(&location))
+  {
+    logError("preparePayload fail");
+    return -1;
+  }
   char payload[sizeof(GPS_LOCATION_INFO)+1] = {0};
   sprintf(payload, PAYLOAD_FORMAT, sizeof(GPS_LOCATION_INFO), '0');
   memcpy(payload, &location, sizeof(GPS_LOCATION_INFO));
   memcpy(buff, payload, sizeof(payload));
-  //  snprintf(buff, sizeof(GPS_LOCATION_INFO), PAYLOAD_FORMAT, location_bytes);
   return sizeof(GPS_LOCATION_INFO);
-  //  memset(buff, 0, len);
-  //  MODEM_METADATA metaData = {0};
-  //  GetModemMetadata(&metaData);
-  //  snprintf(buff, len, PAYLOAD_FORMAT, metaData.ccid, metaData.op_info.operatorName,
-  //	   metaData.op_info.operatorCode,metaData.op_info.accessTechnology,metaData.csq, pb1Clicks);
 }
 
 static int publishMessage(MQTTCtx* mqttCtx){
@@ -424,26 +359,16 @@ static int publishMessage(MQTTCtx* mqttCtx){
   publish.duplicate = 0;
   publish.topic_name = LOCATION_TOPIC;
   publish.packet_id = 2;
-  //  sprintf(MQTT_PAYLOAD_BUFFER, FAKE_PAYLOAD, msgCount++);
   size_t payloadLen = preparePayload(MQTT_PAYLOAD_BUFFER);
   publish.buffer = (byte*)MQTT_PAYLOAD_BUFFER;
   publish.total_len = (word16)payloadLen;
 
   logInfo("Publish to topic '%s'", publish.topic_name);
-  // todo remove this piece of code when submitting, since this is not efficient and should only be used for debugging
-  logInfo("Raw payload (%u bytes):\n", payloadLen);
-
-  for (int i=0; i < payloadLen; i++)
-  {
-    sprintf(RAW_PAYLOAD+i*3, "%02X ", MQTT_PAYLOAD_BUFFER[i]);
-  }
-  logInfo("%s",RAW_PAYLOAD);
   return MqttClient_Publish(&(mqttCtx->client), &publish);
-  return 0;
 }
 
 static int subscribeToTopic(MQTTCtx* mqttCtx){
-  printf("3) Subscribe to topic %s\n", mqttCtx->topic_name);
+  logInfo("SubscribeToTopic %s", mqttCtx->topic_name);
   // Build list of topics
   XMEMSET(&(mqttCtx->subscribe), 0, sizeof(MqttSubscribe));
   mqttCtx->topics[0].topic_filter = DISTRESS_TOPIC;
@@ -460,77 +385,24 @@ static int subscribeToTopic(MQTTCtx* mqttCtx){
 }
 
 
-
-
 static int MqttExitRoutine(int retval, char *message, MQTTCtx *mqttCtx) {
-// TODO unsubscribe?
-	GPSDisable();
-  if (retval < 0){
-    logError("%s\nError code (%d): %s", message, retval, MqttClient_ReturnCodeToString(retval));
-    //      logFail("MqttFlow failure, aborting...");
+  GPSDisable();
+  if (retval < 0)
+  {
+    logFail("%s\nError code (%d): %s", message, retval, MqttClient_ReturnCodeToString(retval));
     sleepMs(5000);
     mqttCtx->reboot = 1;
   }
 
-  else {
+  else
+  {
     mqttCtx->reboot = 0;
     logSuccess("%s", message);
   }
 
   logInfo("MqttClientNet_DeInit");
-  redrawScreen = true;
   MqttClientNet_DeInit(&mqttCtx->net);
   return retval;
-}
-
-
-static void drawScreen(void) {
-  redrawScreen = false;
-  //  printf("\f");
-  //  if(applicationMode == MENU_DISPLAY_MODE){
-  //      printf("Menu:\n\n"
-  //	  "PB0: Publish message to MQTT broker. \n"
-  //	  "PB1: Number of clicks since last sent information\n\n");
-  //
-  //  }
-  //  else if(applicationMode == CLICKS_DISPLAY_MODE){
-  ////      printf("# PB1 presses: %lu\n", pb1Clicks);
-  //  }
-  if(distress){
-    printf("distress");
-  }
-}
-
-static void GpioSetup(void)
-{
-  /* Enable GPIO clock. */
-  CMU_ClockEnable(cmuClock_GPIO, true);
-
-  /* Configure PB0 as input and enable interrupt  */
-  GPIO_PinModeSet(BSP_GPIO_PB0_PORT, BSP_GPIO_PB0_PIN, gpioModeInputPull, 1);
-  GPIO_IntConfig(BSP_GPIO_PB0_PORT, BSP_GPIO_PB0_PIN, false, true, true);
-
-  /* Configure PB1 as input and enable interrupt */
-  GPIO_PinModeSet(BSP_GPIO_PB1_PORT, BSP_GPIO_PB1_PIN, gpioModeInputPull, 1);
-  GPIO_IntConfig(BSP_GPIO_PB1_PORT, BSP_GPIO_PB1_PIN, false, true, true);
-
-  GpioEnable();
-}
-
-static void GpioEnable(){
-  NVIC_ClearPendingIRQ(GPIO_EVEN_IRQn);
-  NVIC_EnableIRQ(GPIO_EVEN_IRQn);
-
-  NVIC_ClearPendingIRQ(GPIO_ODD_IRQn);
-  NVIC_EnableIRQ(GPIO_ODD_IRQn);
-}
-
-static void GpioDisable(){
-  NVIC_ClearPendingIRQ(GPIO_EVEN_IRQn);
-  NVIC_DisableIRQ(GPIO_EVEN_IRQn);
-
-  NVIC_ClearPendingIRQ(GPIO_ODD_IRQn);
-  NVIC_DisableIRQ(GPIO_ODD_IRQn);
 }
 
 static void DisplaySetUp(void){
@@ -547,46 +419,4 @@ static void DisplaySetUp(void){
     /* Text display initialization failed. */
     while (1) ;
   }
-}
-
-
-/***************************************************************************//**
- * @brief Unified GPIO Interrupt handler (pushbuttons)
- *        PB0 Starts selected test
- *        PB1 Cycles through the available tests
- ******************************************************************************/
-void GPIO_Unified_IRQ(void)
-{
-  /* Get and clear all pending GPIO interrupts */
-  uint32_t interruptMask = GPIO_IntGet();
-  GPIO_IntClear(interruptMask);
-
-  /* Act on interrupts */
-  if (interruptMask & (1 << BSP_GPIO_PB1_PIN)) {
-    distress = true;
-    //	  applicationMode = CLICKS_DISPLAY_MODE;
-    //      redrawScreen = true;
-  }
-  else if (interruptMask & (1 << BSP_GPIO_PB0_PIN)) {
-    distress = false;
-    //	  redrawScreen = true;
-    //      applicationMode = SEND_UART_MODE;
-  }
-
-}
-
-/***************************************************************************//**
- * @brief GPIO Interrupt handler for even pins
- ******************************************************************************/
-void GPIO_EVEN_IRQHandler(void)
-{
-  GPIO_Unified_IRQ();
-}
-
-/***************************************************************************//**
- * @brief GPIO Interrupt handler for odd pins
- ******************************************************************************/
-void GPIO_ODD_IRQHandler(void)
-{
-  GPIO_Unified_IRQ();
 }

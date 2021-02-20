@@ -16,18 +16,18 @@
  */
 static int NetConnect(void *context, const char* host, word16 port, int timeout_ms)
 {
-    logInfo("SocketInit");
-    int retval;
-    retval = SocketInit(host, port);
-    if (retval < 0)
-        return retval;
-    logInfo("SocketConnect");
-    retval = SocketConnect();
-    if (retval < 0)
-        return retval;
+  logInfo("SocketInit");
+  int retval;
+  retval = SocketInit(host, port);
+  if (retval < 0)
+    return retval;
+  logInfo("SocketConnect");
+  retval = SocketConnect();
+  if (retval < 0)
+    return retval;
 
-    logInfo("NetConnect success");
-    return MQTT_CODE_SUCCESS;
+  logInfo("NetConnect success");
+  return MQTT_CODE_SUCCESS;
 }
 
 /**
@@ -43,9 +43,9 @@ static int NetConnect(void *context, const char* host, word16 port, int timeout_
  */
 static int NetRead(void *context, byte* buf, int buf_len, int timeout_ms)
 {
-    logDebug("Reading data from MQTT broker");
-    int numBytes = SocketRead(buf, buf_len, timeout_ms);
-    return numBytes;
+  logDebug("Reading data from MQTT broker");
+  int numBytes = SocketRead(buf, buf_len, timeout_ms);
+  return numBytes;
 }
 
 
@@ -62,9 +62,9 @@ static int NetRead(void *context, byte* buf, int buf_len, int timeout_ms)
  */
 static int NetWrite(void *context, const byte* buf, int buf_len, int timeout_ms)
 {
-    logInfo("netwrite(timeout %d ms). Payload (%d bytes):\n%s", timeout_ms, buf_len, buf);
-    int numBytes = SocketWrite(buf, buf_len);
-    return numBytes;
+  logInfo("netwrite(timeout %d ms). Payload (%d bytes):\n%s", timeout_ms, buf_len, buf);
+  int numBytes = SocketWrite(buf, buf_len);
+  return numBytes;
 }
 
 /**
@@ -73,25 +73,25 @@ static int NetWrite(void *context, const byte* buf, int buf_len, int timeout_ms)
  * @return
  */
 static int NetDisconnect(void *context) {
-    logDebug("Executing NetDisconnect");
-	int retval = MQTT_CODE_SUCCESS;
-	if (context == NULL)
-	{
-		retval = SocketDisable();
-	}
-	else
-	{
-		MQTTCtx* mqttCtx = (MQTTCtx*) context;
-		if (mqttCtx->reboot){
-			retval= SocketDisable();
-		}
-		else{
-			retval = SocketClose();
-		}
-	}
-    if (retval < 0)
-        return MQTT_CODE_ERROR_NETWORK;
-    return MQTT_CODE_SUCCESS;
+  logDebug("Executing NetDisconnect");
+  int retval = MQTT_CODE_SUCCESS;
+  if (context == NULL)
+  {
+    retval = SocketDisable();
+  }
+  else
+  {
+    MQTTCtx* mqttCtx = (MQTTCtx*) context;
+    if (mqttCtx->reboot){
+      retval= SocketDisable();
+    }
+    else{
+      retval = SocketClose();
+    }
+  }
+  if (retval < 0)
+    return MQTT_CODE_ERROR_NETWORK;
+  return MQTT_CODE_SUCCESS;
 }
 
 /**
@@ -102,15 +102,15 @@ static int NetDisconnect(void *context) {
  */
 int MqttClientNet_Init(MqttNet* net, MQTTCtx* mqttCtx)
 {
-    net->connect = NetConnect;
-    net->read = NetRead;
-    net->write = NetWrite;
-    net->disconnect = NetDisconnect;
-    net->context = mqttCtx;
-    mqttCtx->client.net = net;
-    int retval = MqttClient_Init(&(mqttCtx->client), mqttCtx->client.net, mqttCtx->client.msg_cb, mqttCtx->client.tx_buf, mqttCtx->client.tx_buf_len,
-                    mqttCtx->client.rx_buf, mqttCtx->client.rx_buf_len, mqttCtx->cmd_timeout_ms);
-    return retval;
+  net->connect = NetConnect;
+  net->read = NetRead;
+  net->write = NetWrite;
+  net->disconnect = NetDisconnect;
+  net->context = mqttCtx;
+  mqttCtx->client.net = net;
+  int retval = MqttClient_Init(&(mqttCtx->client), mqttCtx->client.net, mqttCtx->client.msg_cb, mqttCtx->client.tx_buf, mqttCtx->client.tx_buf_len,
+                               mqttCtx->client.rx_buf, mqttCtx->client.rx_buf_len, mqttCtx->cmd_timeout_ms);
+  return retval;
 }
 
 /**
@@ -120,15 +120,37 @@ int MqttClientNet_Init(MqttNet* net, MQTTCtx* mqttCtx)
  */
 int MqttClientNet_DeInit(MqttNet* net)
 {
-	MQTTCtx* mqttCtx = net->context;
-    int retval = MqttClient_Disconnect(&(mqttCtx->client));
+  logInfo("MqttClientNet_DeInit");
+  MQTTCtx* mqttCtx = net->context;
+
+  logInfo("MqttClient_Unsubscribe");
+  XMEMSET(&mqttCtx->unsubscribe, 0, sizeof(MqttUnsubscribe));
+  mqttCtx->unsubscribe.packet_id = 999;
+  mqttCtx->unsubscribe.topic_count = 1;
+  mqttCtx->unsubscribe.topics = mqttCtx->topics;
+
+  /* Unsubscribe Topics */
+  int retval = MqttClient_Unsubscribe(&mqttCtx->client,
+                              &mqttCtx->unsubscribe);
+
     if (retval < 0)
-        return retval;
-    retval = MqttClient_NetDisconnect(&(mqttCtx->client));
-    if (retval)
-        return retval;
-    MqttClient_DeInit(&(mqttCtx->client));
-    return retval;
+    {
+      logError("MqttClient_Disconnect fail");
+      return retval;      
+    }
+  
+  retval = MqttClient_Disconnect(&(mqttCtx->client));
+  if (retval < 0)
+  {
+    logError("MqttClient_Disconnect fail");
+    return retval;      
+  }
+  retval = MqttClient_NetDisconnect(&(mqttCtx->client));
+  if (retval < 0)
+  {
+    logError("MqttClient_NetDisconnect fail");
+    return retval;      
+  }
+  MqttClient_DeInit(&(mqttCtx->client));
+  return retval;
 }
-
-

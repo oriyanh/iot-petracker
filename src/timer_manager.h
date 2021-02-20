@@ -1,10 +1,11 @@
-#ifndef IOT_EX9_TIMERMANAGER_H
-#define IOT_EX9_TIMERMANAGER_H
+#ifndef IOT_TIMER_MANAGER_H
+#define IOT_TIMER_MANAGER_H
 
 #include <stdint.h>
 #include <stdbool.h>
 
 /*
+ * @brief Setting up timers + interrupts for handling timeouts, prior to use
  * does timer setup that populates timerinit struct and sets the clocks.
  */
 void setupTimer();
@@ -19,8 +20,11 @@ int get_timer(void);
  */
 bool isTimedout(int timerDescriptor);
 
-/*
- * enables timer with the given timout
+/**
+ * @brief Enables timeout for this timer
+ *
+ * @param timeout_ms timeout in ms
+ * @param enable whether to start the timer or stop it
  */
 void enableTimer(uint32_t timeout_ms, int timerDescriptor);
 
@@ -34,4 +38,4 @@ void disableTimer(int timerDescriptor);
  */
 void sleepMs(uint32_t milisecs);
 
-#endif //IOT_EX9_TIMERMANAGER_H
+#endif //IOT_TIMER_MANAGER_H
