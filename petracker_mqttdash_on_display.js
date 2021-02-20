@@ -1,0 +1,1 @@
+event.text = "Press me to open map\n lat:"+ event.data["latitude"] + "\n lon:" + event.data["longitude"];
