@@ -93,10 +93,10 @@ The device has two states: Distress mode **Enabled/Disabled**. If distress mode 
     2. Since all location messages are sent with the retain=1, immediately after subscribing the app receives the last known location in a format of the parsed location (python service product).
     3. The app can publish enable/disable signals to the **distress topic**. This is available to the user via switch - See next section.
 2. **The User**- There are two visuals in the app in the form of side by side tiles. 
-    4. <span style="text-decoration:underline;">The location tile:</span> describing location user friendly in a format of latitude and longitude. By pressing on the tile, Google maps is opened with the current location.
-    ![alt_text](images/mqtt_dash1.png "MQTT Dash Location Tile")
-    5. <span style="text-decoration:underline;">The Distress tile:</span> The user, as previously mentioned, can enable/disable the distress mode. In the app, he/she can do so, by enabling/disabling a switch, which automatically sends its state to the **distress topic **in a form of “enable”/”disable” string read by the IoT device that is subscribed to this topic. The signal is sent once with retain=1. Then, the next time the device subscribes to the **distress topic**, it will enter/exit the distress mode respectively. This means that even if there are connection issues, it won’t matter, since the minute the device is able to subscribe to the distress topic it immediately knows in which states it is, and responds accordingly.     
-    ![alt_text](images/mqtt_dash2.png "MQTT Distress Tile")
+    4. <span style="text-decoration:underline;">The location tile:</span> describing location user friendly in a format of latitude and longitude. By pressing on the tile, Google maps is opened with the current location.<br>
+![alt_text](images/mqtt_dash1.png "MQTT Dash Location Tile")<br><br>
+    5. <span style="text-decoration:underline;">The Distress tile:</span> The user, as previously mentioned, can enable/disable the distress mode. In the app, he/she can do so, by enabling/disabling a switch, which automatically sends its state to the **distress topic **in a form of “enable”/”disable” string read by the IoT device that is subscribed to this topic. The signal is sent once with retain=1. Then, the next time the device subscribes to the **distress topic**, it will enter/exit the distress mode respectively. This means that even if there are connection issues, it won’t matter, since the minute the device is able to subscribe to the distress topic it immediately knows in which states it is, and responds accordingly.<br>     
+![alt_text](images/mqtt_dash2.png "MQTT Distress Tile")
 
 
 <h4>Power considerations</h4>
