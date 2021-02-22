@@ -25,73 +25,6 @@
 #include "gps.h"
 
 
-/**
- * Setup for on-device display
- */
-static void DisplaySetUp(void);
-
-
-/**
- * Runs main flow with MQTT - Init, Connect, Publish, DeInit
- */
-static int MqttConnectFlow(MQTTCtx* mqttCtx);
-
-/**
- * Initializes MqttCtx struct
- * @param mqttCtx Context
- */
-static void initMqttCtx(MQTTCtx* mqttCtx);
-
-/**
- * Initializes MqttClient struct of MqttCtx
- * @param mqttCtx Context
- * @return
- */
-static int initMqttClient(MQTTCtx* mqttCtx);
-
-/**
- * Initializes CONNECT packet
- * @param mqttCtx Context
- */
-static void initConnectPacket(MQTTCtx *mqttCtx);
-
-/**
- * Connects to broker
- * @param mqttCtx Context
- * @return
- */
-static int connectToBroker(MQTTCtx* mqttCtx);
-
-/**
- * PUBLISHes a message
- * @param mqttCtx Context
- * @return
- */
-static int publishMessage(MQTTCtx* mqttCtx);
-
-static int subscribeToTopic(MQTTCtx* mqttCtx);
-
-/**
- * Prepares payload for `publishMessage`
- */
-static size_t preparePayload(char* buff);
-
-/**
- * Gets called when returning from `MqttFlow`, makes sure MQTT is de-initialized and 
- */
-static int MqttExitRoutine(int retval, char *message, MQTTCtx *mqttCtx);
-
-/**
- * Callback that is executed whenever a PUBLISH message is received in a topic the client is subscribed to
- * @param client MQTT client
- * @param message Incoming message
- * @param msg_new Whether the message is new or not
- * @param msg_done
- * @return
- */
-static int DitressListener(MqttClient *client, MqttMessage *message, byte msg_new, byte msg_done);
-
-
 static byte MQTT_TX_BUFFER[BUFFER_SIZE] = {0};
 static byte MQTT_RX_BUFFER[BUFFER_SIZE] = {0};
 static char MQTT_PAYLOAD_BUFFER[MQTT_PAYLOAD_SIZE] = {0};
@@ -100,6 +33,34 @@ static volatile bool distress = false;
 static volatile bool connected = false;
 
 static DISPLAY_Device_t displayDevice;    /* Display device handle.         */
+
+/**
+ * Setup for on-device display
+ */
+static void DisplaySetUp(void);
+
+/**
+ * Runs main flow with MQTT - Init, Connect, Publish, DeInit
+ */
+static int openConnections(MQTTCtx* mqttCtx);
+
+/**
+ * Gets called when returning from `MqttFlow`, makes sure MQTT is de-initialized and 
+ */
+static int closeConnections(int retval, char *message, MQTTCtx *mqttCtx);
+
+/**
+ * Initializes MQTTCtx struct and MqttClient
+ * @param mqttCtx Context
+ */
+static int initMqttCtx(MQTTCtx* mqttCtx);
+
+/**
+ * PUBLISHes current device location to an MQTT broker
+ * @param mqttCtx Context
+ * @return
+ */
+static int publishLocation(MQTTCtx* mqttCtx);
 
 /***************************************************************************//**
  * @brief  Main function
@@ -126,114 +87,116 @@ int main(void)
   DisplaySetUp();
 
   MQTTCtx mqttCtx;
-
-  initMqttCtx(&mqttCtx);
-  int retval = 0;
-  logInfo("initMqttClient");
-  retval = initMqttClient(&mqttCtx);
+  int retval = initMqttCtx(&mqttCtx);
   if (retval < 0)
   {
-    MqttExitRoutine(retval, "initMqttClient Error", &mqttCtx);
+    closeConnections(retval, "initMqttClient Error", &mqttCtx);
     while(1);
-
   }
 
   while (1)
   {
+    // Connect to peripherals and MQTT broker
     if (!connected)
     {
-      retval = MqttConnectFlow(&mqttCtx);
+      retval = openConnections(&mqttCtx);
       if (retval < 0)
       {
-        MqttExitRoutine(retval, "connectFlow error", &mqttCtx);
+        closeConnections(retval, "connectFlow error", &mqttCtx);
       }
       else
       {
         connected = true;
       }
     }
+
+    // Publish location if connected
     if (connected)
     {
-      retval = publishMessage(&mqttCtx);
-      if (retval < 0){
-        MqttExitRoutine(retval, "publish Error", &mqttCtx);
+      retval = publishLocation(&mqttCtx);
+      if (retval < 0)
+      {
+        closeConnections(retval, "publish Error", &mqttCtx);
         connected = false;
       }
     }
+
+    // Go to sleep if not in distress mode and disconnect
     if (!distress)
     {
       if (connected)
       {
-        MqttExitRoutine(retval, "going to sleep", &mqttCtx);
+        closeConnections(retval, "going to sleep", &mqttCtx);
         connected = false;
       }
       sleepMs(60000);
     }
     else
     {
-      sleepMs(10000);
+      sleepMs(5000);
     }
   }
 }
 
-int MqttConnectFlow(MQTTCtx* mqttCtx)
+/**
+ * Connects to broker
+ * @param mqttCtx Context
+ * @return
+ */
+static int connectToBroker(MQTTCtx* mqttCtx);
+
+/**
+ * Subscribes to Distress topic
+ * @param mqttCtx Context
+ * @return
+ */
+static int subscribeToTopic(MQTTCtx* mqttCtx);
+
+int openConnections(MQTTCtx* mqttCtx)
 {
-  logInfo("MqttConnectFlow");
-  int retval=0;
-  logInfo("broker: %s:%d", MQTT_DASHBOARD, MQTT_PORT);
-  GPSInit();
+  logInfo("openConnections");
+  int retval = GPSInit();
+  if (retval < 0)
+  {
+    logError("openConnections failed GPSInit");
+    return retval;
+  }
+
+  logInfo("connectToBroker: %s:%d", MQTT_DASHBOARD, MQTT_PORT);
   retval = connectToBroker(mqttCtx);
   if (retval < 0)
   {
-    return MqttExitRoutine(retval, "connectToBroker Error", mqttCtx);
+    return closeConnections(retval, "connectToBroker Error", mqttCtx);
   }
 
   retval = subscribeToTopic(mqttCtx);
   if (retval < 0)
   {
-    return MqttExitRoutine(retval, "subscribeToTopic Error", mqttCtx);
+    return closeConnections(retval, "subscribeToTopic Error", mqttCtx);
   }
 
   return MQTT_CODE_SUCCESS;
 }
 
-static void initMqttCtx(MQTTCtx* mqttCtx) {
-  XMEMSET(mqttCtx, 0, sizeof(MQTTCtx));
-  mqttCtx->host = MQTT_DASHBOARD;
-  mqttCtx->port = MQTT_PORT;
-  mqttCtx->qos = MQTT_QOS_1;
-  mqttCtx->clean_session = 0;
-  mqttCtx->keep_alive_sec = DEFAULT_KEEP_ALIVE_SEC;
-  mqttCtx->client_id = "MayOrOfFlavortown";
-  mqttCtx->topic_name = DISTRESS_TOPIC;
-  mqttCtx->cmd_timeout_ms = MQTT_CMD_TIMEOUT_MS;
-  mqttCtx->retain = 0;
-  mqttCtx->app_name = "MayOr (mayonnaise-filled Oreo)";
-  mqttCtx->message = NULL;
-  mqttCtx->tx_buf = MQTT_TX_BUFFER;
-  mqttCtx->rx_buf = MQTT_RX_BUFFER;
-  MqttNet network;
-  XMEMSET(&network, 0, sizeof(MqttNet));
-  mqttCtx->net = network;
-}
-
-static int initMqttClient(MQTTCtx* mqttCtx)
+static int closeConnections(int retval, char *message, MQTTCtx *mqttCtx)
 {
-  MqttClient client;
-  memset(&client, 0, sizeof(MqttClient));
-  mqttCtx->client.ctx = &mqttCtx;
-  mqttCtx->client = client;
-  mqttCtx->client.cmd_timeout_ms = MQTT_CMD_TIMEOUT_MS;
-  mqttCtx->client.net = &(mqttCtx->net);
-  mqttCtx->client.tx_buf = MQTT_TX_BUFFER;
-  mqttCtx->client.rx_buf = MQTT_RX_BUFFER;
-  mqttCtx->client.tx_buf_len = BUFFER_SIZE;
-  mqttCtx->client.rx_buf_len = BUFFER_SIZE;
-  mqttCtx->client.msg_cb = DitressListener;
-  mqttCtx->reboot = 0;
+  if (retval < 0)
+  {
+    logFail("Error: %s\nError code (%d): %s\n rebooting", message, retval, MqttClient_ReturnCodeToString(retval));
+    mqttCtx->reboot = 1;
+    sleepMs(5000);
+  }
 
-  logInfo("MqttClientNet_Init");
-  return MqttClientNet_Init(mqttCtx->client.net, mqttCtx);
+  else
+  {
+    logSuccess("success, %s", message);
+    mqttCtx->reboot = 0;
+  }
+
+  logInfo("closing external connections");
+  GPSDisable();
+  MqttClientNet_DeInit(&mqttCtx->net);
+  return retval;
 }
 
 /**
@@ -244,10 +207,9 @@ static int initMqttClient(MQTTCtx* mqttCtx)
  * @param msg_done
  * @return
  */
-static int DitressListener(MqttClient *client, MqttMessage *message,
-                           byte msg_new, byte msg_done)
+static int DistressMqttCallback(MqttClient *client, MqttMessage *message, byte msg_new, byte msg_done)
 {
-  logInfo("DitressListener callback");
+  logInfo("DistressMqttCallback");
   byte buf[BUFFER_SIZE + 1];
   word32 len;
 
@@ -295,6 +257,49 @@ static int DitressListener(MqttClient *client, MqttMessage *message,
   return MQTT_CODE_SUCCESS;
 }
 
+static int initMqttCtx(MQTTCtx* mqttCtx)
+{
+  logInfo("initMqttCtx");
+  XMEMSET(mqttCtx, 0, sizeof(MQTTCtx));
+  mqttCtx->host = MQTT_DASHBOARD;
+  mqttCtx->port = MQTT_PORT;
+  mqttCtx->qos = MQTT_QOS_1;
+  mqttCtx->clean_session = 0;
+  mqttCtx->keep_alive_sec = DEFAULT_KEEP_ALIVE_SEC;
+  mqttCtx->client_id = "MayOrOfFlavortown";
+  mqttCtx->topic_name = DISTRESS_TOPIC;
+  mqttCtx->cmd_timeout_ms = MQTT_CMD_TIMEOUT_MS;
+  mqttCtx->retain = 0;
+  mqttCtx->app_name = "MayOr (mayonnaise-filled Oreo)";
+  mqttCtx->message = NULL;
+  mqttCtx->tx_buf = MQTT_TX_BUFFER;
+  mqttCtx->rx_buf = MQTT_RX_BUFFER;
+  MqttNet network;
+  XMEMSET(&network, 0, sizeof(MqttNet));
+  mqttCtx->net = network;
+  
+  logInfo("InitMqttClient");
+  MqttClient client;
+  memset(&client, 0, sizeof(MqttClient));
+  mqttCtx->client.ctx = &mqttCtx;
+  mqttCtx->client = client;
+  mqttCtx->client.cmd_timeout_ms = MQTT_CMD_TIMEOUT_MS;
+  mqttCtx->client.net = &(mqttCtx->net);
+  mqttCtx->client.tx_buf = MQTT_TX_BUFFER;
+  mqttCtx->client.rx_buf = MQTT_RX_BUFFER;
+  mqttCtx->client.tx_buf_len = BUFFER_SIZE;
+  mqttCtx->client.rx_buf_len = BUFFER_SIZE;
+  mqttCtx->client.msg_cb = DistressMqttCallback;
+  mqttCtx->reboot = 0;
+
+  logInfo("MqttClientNet_Init");
+  return MqttClientNet_Init(mqttCtx->client.net, mqttCtx);
+}
+
+/**
+ * Initializes CONNECT packet
+ * @param mqttCtx Context
+ */
 static void initConnectPacket(MQTTCtx *mqttCtx)
 {
   /* Build connect packet */
@@ -310,7 +315,8 @@ static void initConnectPacket(MQTTCtx *mqttCtx)
   XMEMSET(&mqttCtx->lwt_msg, 0, sizeof(mqttCtx->lwt_msg));
   mqttCtx->connect.lwt_msg = &mqttCtx->lwt_msg;
   mqttCtx->connect.enable_lwt = mqttCtx->enable_lwt;
-  if (mqttCtx->enable_lwt) {
+  if (mqttCtx->enable_lwt)
+  {
     /* Send client id in LWT payload */
     mqttCtx->lwt_msg.qos = mqttCtx->qos;
     mqttCtx->lwt_msg.retain = 0;
@@ -320,21 +326,30 @@ static void initConnectPacket(MQTTCtx *mqttCtx)
   }
 }
 
-static int connectToBroker(MQTTCtx* mqttCtx) {
+static int connectToBroker(MQTTCtx* mqttCtx)
+{
   logInfo("connectToBroker");
   int retval = MqttClient_NetConnect(&(mqttCtx->client), mqttCtx->host, mqttCtx->port, mqttCtx->cmd_timeout_ms, 0,NULL);
   if (retval < 0)
   {
-    logInfo("MqttClient_NetConnect fail");
+    logError("MqttClient_NetConnect fail");
     return retval;
   }
 
   initConnectPacket(mqttCtx);
   retval = MqttClient_Connect(&(mqttCtx->client), &(mqttCtx->connect));
+  if (retval < 0)
+  {
+    logError("MqttClient_Connect fail");
+  }
   return retval;
 }
 
-static size_t preparePayload(char* buff){
+/**
+ * Prepares payload for `publishMessage`
+ */
+static int preparePayload(char* buff)
+{
   static const char* PAYLOAD_FORMAT = "%*.c";
   GPS_LOCATION_INFO location = {0};
   memset(&location, 0, sizeof(GPS_LOCATION_INFO));
@@ -350,7 +365,9 @@ static size_t preparePayload(char* buff){
   return sizeof(GPS_LOCATION_INFO);
 }
 
-static int publishMessage(MQTTCtx* mqttCtx){
+static int publishLocation(MQTTCtx* mqttCtx)
+{
+  logInfo("publishLocation");
   MqttMessage publish;
   XMEMSET(&publish, 0, sizeof(MqttPublish));
   publish.stat = MQTT_MSG_BEGIN;
@@ -359,17 +376,21 @@ static int publishMessage(MQTTCtx* mqttCtx){
   publish.duplicate = 0;
   publish.topic_name = LOCATION_TOPIC;
   publish.packet_id = 2;
-  size_t payloadLen = preparePayload(MQTT_PAYLOAD_BUFFER);
+  int payloadLen = preparePayload(MQTT_PAYLOAD_BUFFER);
+  if (payloadLen < 0)
+  {
+    logError("publishLocation fail");
+    return payloadLen;
+  }
   publish.buffer = (byte*)MQTT_PAYLOAD_BUFFER;
   publish.total_len = (word16)payloadLen;
-
   logInfo("Publish to topic '%s'", publish.topic_name);
   return MqttClient_Publish(&(mqttCtx->client), &publish);
 }
 
-static int subscribeToTopic(MQTTCtx* mqttCtx){
+static int subscribeToTopic(MQTTCtx* mqttCtx)
+{
   logInfo("SubscribeToTopic %s", mqttCtx->topic_name);
-  // Build list of topics
   XMEMSET(&(mqttCtx->subscribe), 0, sizeof(MqttSubscribe));
   mqttCtx->topics[0].topic_filter = DISTRESS_TOPIC;
   mqttCtx->topics[0].qos = mqttCtx->qos;
@@ -378,45 +399,28 @@ static int subscribeToTopic(MQTTCtx* mqttCtx){
       sizeof(mqttCtx->topics) / sizeof(MqttTopic);
   mqttCtx->subscribe.topics = mqttCtx->topics;
   int retval = MqttClient_Subscribe(&(mqttCtx->client), &(mqttCtx->subscribe));
-  if (retval < 0) {
+  if (retval < 0)
+  {
     return retval;
   }
   return retval;
 }
 
-
-static int MqttExitRoutine(int retval, char *message, MQTTCtx *mqttCtx) {
-  GPSDisable();
-  if (retval < 0)
-  {
-    logFail("%s\nError code (%d): %s", message, retval, MqttClient_ReturnCodeToString(retval));
-    sleepMs(5000);
-    mqttCtx->reboot = 1;
-  }
-
-  else
-  {
-    mqttCtx->reboot = 0;
-    logSuccess("%s", message);
-  }
-
-  logInfo("MqttClientNet_DeInit");
-  MqttClientNet_DeInit(&mqttCtx->net);
-  return retval;
-}
-
-static void DisplaySetUp(void){
+static void DisplaySetUp(void)
+{
   DISPLAY_Init();
 
   /* Retrieve the properties of the display. */
-  if (DISPLAY_DeviceGet(0, &displayDevice) != DISPLAY_EMSTATUS_OK) {
-    /* Unable to get display handle. */
+  if (DISPLAY_DeviceGet(0, &displayDevice) != DISPLAY_EMSTATUS_OK)
+  {
+    logError("Unable to get display handle");
     while (1) ;
   }
 
   /* Retarget stdio to the display. */
-  if (TEXTDISPLAY_EMSTATUS_OK != RETARGET_TextDisplayInit()) {
-    /* Text display initialization failed. */
+  if (TEXTDISPLAY_EMSTATUS_OK != RETARGET_TextDisplayInit())
+  {
+    logError("Text display initialization failed");
     while (1) ;
   }
 }

@@ -130,9 +130,5 @@ int CellularWrite(const unsigned char *payload, unsigned int len);
  */
 int CellularRead(unsigned char *buf, unsigned int max_len, unsigned int timeout_ms);
 
-/**
- * Populates the metadata struct with ccid, csq, registered network information.
- */
-void GetModemMetadata(MODEM_METADATA *metaData);
 
 #endif //IOT_CELLULAR_H

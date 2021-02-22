@@ -24,7 +24,7 @@ void _logger(LOG_LEVEL level, const char* message, ...)
 {
 #ifdef NO_LOGGER
   return;
-#endif
+#endif  // NO_LOGGER
 #ifndef DEBUG_MODE
   if (level == LDEBUG)
   {
@@ -40,15 +40,15 @@ void _logger(LOG_LEVEL level, const char* message, ...)
 
   switch (level)
   {
-    case LWARNING:
-    case LERROR:
     case LFAIL:
     case LSUCCESS:
-//      printf("%s%s%s", _levelStrings[level], FORMAT, SYS_ENDL);
-//      break;
+      printf("%s%s%s", _levelStrings[level], FORMAT, SYS_ENDL);
+      break;
 
     case LDEBUG:
     case LINFO:
+    case LWARNING:
+    case LERROR:
     default:
       printf("%s%s", FORMAT, SYS_ENDL);
       break;

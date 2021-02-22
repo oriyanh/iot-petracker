@@ -16,15 +16,21 @@
  */
 static int NetConnect(void *context, const char* host, word16 port, int timeout_ms)
 {
-  logInfo("SocketInit");
   int retval;
   retval = SocketInit(host, port);
   if (retval < 0)
-    return retval;
+  {
+    logError("NetConnect fail at SocketInit");
+    return retval;    
+  }
+
   logInfo("SocketConnect");
   retval = SocketConnect();
   if (retval < 0)
-    return retval;
+  {
+    logError("NetConnect fail at SocketConnect");
+    return retval;    
+  }
 
   logInfo("NetConnect success");
   return MQTT_CODE_SUCCESS;
@@ -62,7 +68,7 @@ static int NetRead(void *context, byte* buf, int buf_len, int timeout_ms)
  */
 static int NetWrite(void *context, const byte* buf, int buf_len, int timeout_ms)
 {
-  logInfo("netwrite(timeout %d ms). Payload (%d bytes):\n%s", timeout_ms, buf_len, buf);
+  logInfo("NetWrite(timeout %d ms, %d bytes)", timeout_ms, buf_len);
   int numBytes = SocketWrite(buf, buf_len);
   return numBytes;
 }
@@ -72,8 +78,9 @@ static int NetWrite(void *context, const byte* buf, int buf_len, int timeout_ms)
  * @param context Client context, UNUSED
  * @return
  */
-static int NetDisconnect(void *context) {
-  logDebug("Executing NetDisconnect");
+static int NetDisconnect(void *context)
+{
+  logDebug("NetDisconnect");
   int retval = MQTT_CODE_SUCCESS;
   if (context == NULL)
   {
@@ -82,15 +89,23 @@ static int NetDisconnect(void *context) {
   else
   {
     MQTTCtx* mqttCtx = (MQTTCtx*) context;
-    if (mqttCtx->reboot){
+    if (mqttCtx->reboot)
+    {
       retval= SocketDisable();
     }
-    else{
+
+    else
+    {
       retval = SocketClose();
     }
   }
+
   if (retval < 0)
+  {
+    logError("NetDisconnect error");
     return MQTT_CODE_ERROR_NETWORK;
+  }
+
   return MQTT_CODE_SUCCESS;
 }
 
@@ -131,14 +146,14 @@ int MqttClientNet_DeInit(MqttNet* net)
 
   /* Unsubscribe Topics */
   int retval = MqttClient_Unsubscribe(&mqttCtx->client,
-                              &mqttCtx->unsubscribe);
+                                      &mqttCtx->unsubscribe);
 
-    if (retval < 0)
-    {
-      logError("MqttClient_Disconnect fail");
-      return retval;      
-    }
-  
+  if (retval < 0)
+  {
+    logError("MqttClient_Disconnect fail");
+    return retval;      
+  }
+
   retval = MqttClient_Disconnect(&(mqttCtx->client));
   if (retval < 0)
   {

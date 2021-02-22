@@ -64,11 +64,10 @@ int GPSInit()
   int result = SerialInit(GPS_PORT, GPS_BAUDRATE, &gpsHandle);
   if (result < 0)
   {
-    logError("GPSInit fail");
+    logError("GPSInit failed SerialInit");
     return result;
   }
 
-//  logInfo("GPSInit success");
   isOpen = true;
   return 0;
 }
@@ -95,7 +94,7 @@ int GPSGetReadRaw(unsigned char *buf, unsigned int max_len)
     logError("GPSGetReadRaw SerialRecv fail");
     return -1;
   }
-//  logInfo("GPSGetReadRaw success");
+
   return result;
 }
 
@@ -117,7 +116,6 @@ bool GPSGetFixInformation(GPS_LOCATION_INFO *location)
     return false;
   }
 
-//  logInfo("GPSGetFixInformation success");
   return true;
 }
 

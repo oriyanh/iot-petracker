@@ -279,6 +279,6 @@ int registerCellularNetwork(OPERATOR_INFO* opList, int numOpsFound)
 
   logInfo("registerCellularNetwork Success!");
   logDebug("Network: '%s' (code=%d,ACT='%s',reg status=%d)", 
-          selectedOp.operatorName, selectedOp.operatorCode, selectedOp.accessTechnology, registrationStatus);
+           selectedOp.operatorName, selectedOp.operatorCode, selectedOp.accessTechnology, registrationStatus);
   return 0;
 }

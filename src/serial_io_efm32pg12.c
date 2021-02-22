@@ -287,7 +287,8 @@ int SerialSend(const unsigned char *buf, unsigned int size, int *handle)
     return -1;
   }
   SerialDesc *ser = devices[*handle];
-  if (*handle != MODEM_PORT && *handle != GPS_PORT) {
+  if (*handle != MODEM_PORT && *handle != GPS_PORT)
+  {
     return -1;
   }
 
@@ -327,7 +328,8 @@ int SerialSend(const unsigned char *buf, unsigned int size, int *handle)
   return i;
 }
 
-void SerialFlushInputBuff(int *handle) {
+void SerialFlushInputBuff(int *handle)
+{
   if (handle == NULL)
   {
     logError("SerialFlushInputBuff fail, handle is NULL");
@@ -352,7 +354,8 @@ void SerialFlushInputBuff(int *handle) {
   ser->rxBuf->overflow = false;
 }
 
-int SerialDisable(int *handle) {
+int SerialDisable(int *handle)
+{
   logInfo("SerialDisable");
   if (handle == NULL)
   {

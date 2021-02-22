@@ -65,7 +65,8 @@ static int executeCommand(const char* command, int commandLen)
  * @param maxNumAttempts Maximum number of attempts to execute command
  * @return ERROR if a fatal error has occurred, WARNING if a non fatal error occurred, and number of sent received if successful.
  */
-static int readUntil(char* buf, int bufsize, int timeout, const char* endMsg, int maxNumAttempts){
+static int readUntil(char* buf, int bufsize, int timeout, const char* endMsg, int maxNumAttempts)
+{
   int bytesRecv;
   int totalBytesRecv = 0;
   int attempts = 0;
@@ -92,7 +93,7 @@ static int readUntil(char* buf, int bufsize, int timeout, const char* endMsg, in
     }
 
     if (strstr(buf, "ERROR") != NULL) {
-      logError("Found `ERROR`");
+      logError("readUntil found `ERROR`");
       break;
     }
     ++attempts;
@@ -114,14 +115,16 @@ static int readUntil(char* buf, int bufsize, int timeout, const char* endMsg, in
 
 /************************ useful macros *****************************/
 
-static inline int READ_RX_BUFFER(int bufsize, int timeout, const char* endMsg) {
+static inline int READ_RX_BUFFER(int bufsize, int timeout, const char* endMsg)
+{
   return readUntil(RESULT_BUFFER, bufsize, timeout, endMsg, MAX_NUMBER_RETRIES);
 }
 
 /**
  * Executes `executeCommand()` and `readUntil` sequentially, resetting RESULT_BUFFER after printing output to stdout.
  */
-static int execCommandWithOutput(const char* cmd, int timeout, const char* endMsg) {
+static int execCommandWithOutput(const char* cmd, int timeout, const char* endMsg)
+{
   int bytesSent = executeCommand(cmd, (int)strlen(cmd));
   if (bytesSent < 0)
   {
@@ -269,7 +272,6 @@ int CellularGetRegistrationStatus(int *status)
   CLEAR_RX_BUFFER();
   return RET_SUCCESS;
 }
-
 
 /**
  * Helper function to CellularGetOperators, parses a single operator string in the format :
