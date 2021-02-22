@@ -24,9 +24,7 @@ Lost your pet? Well let's find it! With our latest technology we can find your p
 *   Pearl Gecko EFM32 MCU
 *   Quectel L76 GPS connected to MCU via RS232 - using MCU’s LEUART0 (Rx pin only, PD11).
 *   Cinterion EHS6 Cellular Modem connected via RS232 to MCU - using MCU’s USART2 configured to async mode (RX/TX using MISO/MOSI pins, PA6 and PA7). 
-![alt_text](images/mcu.png "MCU")![alt_text](images/modem.png "Cellular Modem")![alt_text](images/gps.png "GPS")
-<br>
-![alt_text](images/iot_system.png "Entire system running on portable USB battery")
+![alt_text](images/mcu.png "MCU")![alt_text](images/modem.png "Cellular Modem")![alt_text](images/gps.png "GPS")![alt_text](images/iot_system.png "Entire system running on portable USB battery")
 
 
 
