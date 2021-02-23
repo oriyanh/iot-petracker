@@ -24,9 +24,9 @@ typedef enum _SERIAL_PORT {MODEM_PORT = 0, GPS_PORT} SERIAL_PORT;
 #define SYS_ENDL "\n"
 
 
-#define MQTT_DASHBOARD "52.29.249.84"
+//#define MQTT_DASHBOARD "52.29.249.84"
 //#define MQTT_DASHBOARD "35.156.182.231"
-//#define MQTT_DASHBOARD "35.158.189.129"
+#define MQTT_DASHBOARD "35.158.189.129"
 
 #define LOCATION_TOPIC "petracker/location_raw"
 #define DISTRESS_TOPIC "petracker/distress"

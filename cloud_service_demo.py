@@ -29,8 +29,8 @@ class GPSLocation:
 current_location = GPSLocation()
 
 # broker = 'broker.mqttdashboard.com'
-# broker = '35.158.189.129'
-broker = '52.29.249.84'
+broker = '35.158.189.129'
+# broker = '52.29.249.84'
 port = 1883
 location_raw_topic = "petracker/location_raw"
 location_parsed_topic = "petracker/location"

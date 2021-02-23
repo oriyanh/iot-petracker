@@ -7,12 +7,14 @@ Maya Lulko maya.lulko@mail.huji.ac.il , 312414089
 
 ## Package contents:
 * README.md
-* iot_ex9.sls
-* iot_ex9.bin
+* iot_petracker.sls
+* iot_petracker.bin
+* project_presentation.pdf
 
 
 ### Run
-After compiling the project, simply execute `main.c`.
+* To run the python cloud service, use python3.7 and ìnstall the requirements.txt packages - `pip install -r requirements.txt` which is included in the .sls archive. Then run `python cloud_service_demo.py`.
+* The .bin hex file can be flashed to the MCU using Simplicity Studio, or the .sls project can be imported and compiled using the same IDE.
 
 <h2>Problem description</h2>
 
