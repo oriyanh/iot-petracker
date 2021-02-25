@@ -2,19 +2,13 @@
 <p>IoT Workshop - Hebrew University 2020-21
 
 ## Authors
-Oriyan Hermoni oriyan.hermoni@mail.huji.ac.il , 302170204<br> 
-Maya Lulko maya.lulko@mail.huji.ac.il , 312414089
-
-## Package contents:
-* README.md
-* iot_petracker.sls
-* iot_petracker.bin
-* project_presentation.pdf
+Oriyan Hermoni oriyan.hermoni@mail.huji.ac.il<br> 
+Maya Lulko maya.lulko@mail.huji.ac.il
 
 
 ### Run
 * To run the python cloud service, use python3.7 and ìnstall the requirements.txt packages - `pip install -r requirements.txt` which is included in the .sls archive. Then run `python cloud_service_demo.py`.
-* The .bin hex file can be flashed to the MCU using Simplicity Studio, or the .sls project can be imported and compiled using the same IDE.
+* The .bin hex file can be flashed to the MCU using Simplicity Studio 4, or the .sls project can be imported and compiled using the same IDE.
 
 <h2>Problem description</h2>
 
